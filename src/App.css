@@ -1,0 +1,201 @@
+/* Genel Stiller ve Ana Yerleşim */
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #f0f2f5;
+}
+
+.app-container { display: flex; min-height: 100vh; }
+.main-content { flex-grow: 1; padding: 2rem; overflow-y: auto; }
+
+/* Kenar Çubuğu (Sidebar) Stilleri */
+.sidebar { width: 260px; background-color: #ffffff; box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05); padding: 1.5rem 0; display: flex; flex-direction: column; justify-content: space-between; }
+.sidebar-logo { padding: 0 1.5rem; margin-bottom: 2rem; text-align: center; }
+.sidebar-logo h1 { font-size: 1.8rem; color: #333; margin: 0; }
+.sidebar-nav { list-style: none; padding: 0 1rem; }
+.sidebar-nav a { display: block; padding: 0.9rem 1.5rem; margin-bottom: 0.5rem; text-decoration: none; color: #555; border-radius: 8px; font-weight: 500; transition: background-color 0.2s, color 0.2s; }
+.sidebar-nav a:hover { background-color: #f0f2f5; }
+.sidebar-nav a.active { background-color: #0d6efd; color: white; }
+
+/* Sayfa ve İçerik Stilleri */
+.page { background-color: #ffffff; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+.page-header { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #dee2e6; }
+.page-header h1 { margin: 0; font-size: 2rem; }
+.page-header p { margin: 0.5rem 0 0; color: #6c757d; }
+
+/* Anasayfa Özel Stilleri */
+.patient-controls { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+.search-bar { width: 100%; padding: 0.8rem 1.2rem; font-size: 1rem; border: 1px solid #ced4da; border-radius: 8px; margin-bottom: 1.5rem; box-sizing: border-box; }
+.patient-list { display: flex; flex-direction: column; gap: 1rem; }
+
+/* Anasayfa Liste Elemanı Stilleri */
+.patient-list-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; border: 1px solid #e9ecef; border-radius: 8px; transition: box-shadow 0.2s, border-color 0.2s; }
+.patient-list-item:hover { border-color: #0d6efd; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+.patient-list-info { cursor: pointer; flex-grow: 1; }
+.patient-list-info .patient-name { margin: 0 0 0.5rem 0; color: #0d6efd; font-size: 1.3rem; }
+.patient-list-info p { margin: 0.2rem 0; color: #6c757d; font-size: 0.9rem; }
+.patient-list-actions { display: flex; gap: 0.5rem; padding-left: 1rem; }
+
+/* Genel Kart Stili */
+.patient-card { background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 1.5rem; }
+.patient-card h3 { margin-top: 0; margin-bottom: 1rem; font-size: 1.2rem; }
+.patient-card p { margin: 0.5rem 0; color: #6c757d; font-size: 0.9rem; }
+.patient-card ul { padding-left: 20px; margin: 0; }
+.patient-card ul li { margin-bottom: 0.25rem;}
+
+/* Detay Sayfası Stilleri */
+.chart-container-full { background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 1.5rem; }
+.analysis-grid-bottom { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
+.ekg-file-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; }
+.ekg-file-list li { padding: 0.75rem 1rem; border-radius: 6px; cursor: pointer; margin-bottom: 0.5rem; border: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; transition: background-color 0.2s; }
+.ekg-file-list li:hover { background-color: #f8f9fa; }
+.ekg-file-list li.active-file { background-color: #0d6efd; color: white; border-color: #0d6efd; font-weight: 500; }
+.ekg-file-list li span { font-size: 0.8rem; color: #6c757d; }
+.ekg-file-list li.active-file span { color: #e0e0e0; }
+
+/* Buton Stilleri */
+.btn { padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 6px; border: 1px solid transparent; cursor: pointer; font-weight: 500; text-decoration: none; display: inline-block; }
+.btn-sm { padding: 0.4rem 0.8rem; font-size: 0.875rem; }
+.btn-primary { color: #fff; background-color: #0d6efd; border-color: #0d6efd; }
+.btn-primary:hover { background-color: #0b5ed7; border-color: #0a58ca; }
+.btn-danger { color: #fff; background-color: #dc3545; border-color: #dc3545; }
+.btn-danger:hover { background-color: #bb2d3b; border-color: #b02a37; }
+.btn-secondary { color: #fff; background-color: #6c757d; border-color: #6c757d; }
+.btn-secondary:hover { background-color: #5c636a; border-color: #565e64; }
+
+/* Modal Stilleri */
+.modal { position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; }
+.modal.show { display: flex; }
+.modal-content { background-color: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); width: 90%; max-width: 500px; position: relative; }
+.close { position: absolute; top: 1rem; right: 1rem; color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+.close:hover { color: #000; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+.form-group input, .form-group select { width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
+
+/* YENİ: Detay sayfası için iki sütunlu layout */
+.layout-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 992px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* DEĞİŞTİ: Daha esnek bir detaylı analiz gridi */
+.analysis-grid-detailed {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+/* YENİ: Grid'de tam genişlik kaplayan kart */
+.full-width-card {
+  grid-column: 1 / -1;
+}
+
+/* YENİ: Sinyal Kalitesi Etiketleri */
+.quality-badge {
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  font-weight: 500;
+  color: #fff;
+}
+.quality-excellent { background-color: #34a853; }
+.quality-good { background-color: #4285f4; }
+.quality-fair { background-color: #fbbc05; color: #333; }
+.quality-poor { background-color: #ea4335; }
+
+
+/* YENİ: Doughnut chart container */
+.doughnut-container {
+    height: 180px; /* Chart'a bir yükseklik ver */
+    position: relative;
+    margin-top: 1rem;
+}
+
+/* YENİ: Tahminler tablosu için stiller */
+.predictions-table-container {
+  max-height: 300px; /* Tabloyu kaydırılabilir yap */
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  margin-top: 1rem;
+}
+
+.predictions-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.predictions-table th, .predictions-table td {
+  padding: 0.8rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.predictions-table thead th {
+  background-color: #f8f9fa;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.predictions-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.predictions-table tbody tr:hover {
+  background-color: #f1f3f4;
+}
+
+/* Butonun devre dışı bırakılmış hali için stil */
+.btn.disabled,
+.btn:disabled {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+/* Yükleme Anımasyonu Stili */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  border-radius: 8px;
+}
+
+.loading-overlay span {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #333;
+}
+.status-düşük {
+  font-weight: bold;
+  color: #28a745; /* Yeşil */
+}
+.status-orta {
+  font-weight: bold;
+  color: #ffc107; /* Sarı */
+}
+.status-yüksek {
+  font-weight: bold;
+  color: #dc3545; /* Kırmızı */
+}
