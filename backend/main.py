@@ -13,7 +13,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # --- Logging Ayarları ---
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -426,7 +426,19 @@ class ECGProcessor:
             # Adım 2: R-peak'leri bul
             try:
                 _, rpeaks_info = nk.ecg_peaks(ecg_cleaned, sampling_rate=fs_in)
-                r_peaks = rpeaks_info.get('ECG_R_Peaks', [])
+                r_peaks_raw = rpeaks_info.get('ECG_R_Peaks', [])
+                
+                # R-peaks'i güvenli şekilde listeye çevir
+                r_peaks = []
+                if hasattr(r_peaks_raw, 'tolist'):
+                    r_peaks = r_peaks_raw.tolist()
+                elif hasattr(r_peaks_raw, '__iter__'):
+                    r_peaks = list(r_peaks_raw)
+                else:
+                    r_peaks = []
+                    
+                logger.debug(f"Bulunan R-peak sayısı: {len(r_peaks)}")
+                
             except Exception as e:
                 logger.error(f"R-peak bulma hatası: {e}")
                 r_peaks = []
@@ -450,14 +462,42 @@ class ECGProcessor:
             try:
                 _, rpeaks_info_ds = nk.ecg_peaks(normalized_signal, sampling_rate=fs_out)
                 r_peak_indices_ds = rpeaks_info_ds.get('ECG_R_Peaks', [])
+                
+                # R-peak'leri güvenli şekilde listeye çevir
+                if hasattr(r_peak_indices_ds, 'tolist'):
+                    r_peak_indices_ds = r_peak_indices_ds.tolist()
+                elif not isinstance(r_peak_indices_ds, list):
+                    r_peak_indices_ds = list(r_peak_indices_ds)
+                    
             except Exception as e:
                 logger.warning(f"Downsampled R-peak bulma hatası: {e}")
                 # Orijinal R-peak'leri ölçekle
+                r_peak_indices_ds = []
                 if r_peaks and fs_in != fs_out:
-                    r_peak_indices_ds = [int(p * fs_out / fs_in) for p in r_peaks]
-                    r_peak_indices_ds = [p for p in r_peak_indices_ds if 0 <= p < len(normalized_signal)]
+                    for p in r_peaks:
+                        try:
+                            # Güvenli şekilde integer'a çevir ve ölçekle
+                            if hasattr(p, 'item'):
+                                scaled_p = int(p.item() * fs_out / fs_in)
+                            else:
+                                scaled_p = int(p * fs_out / fs_in)
+                            
+                            if 0 <= scaled_p < len(normalized_signal):
+                                r_peak_indices_ds.append(scaled_p)
+                        except (ValueError, TypeError) as pe:
+                            logger.warning(f"R-peak ölçekleme hatası: {p}, hata: {pe}")
+                            continue
                 else:
-                    r_peak_indices_ds = r_peaks
+                    # fs_in == fs_out durumu
+                    for p in r_peaks:
+                        try:
+                            if hasattr(p, 'item'):
+                                r_peak_indices_ds.append(int(p.item()))
+                            else:
+                                r_peak_indices_ds.append(int(p))
+                        except (ValueError, TypeError) as pe:
+                            logger.warning(f"R-peak çevirme hatası: {p}, hata: {pe}")
+                            continue
             
             # Adım 5: AI Tahminleri
             predictions = []
