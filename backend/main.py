@@ -621,6 +621,29 @@ def upload_file(patient_id):
     conn.close()
     return jsonify({"message": "Dosya yüklendi."}), 201
 
+@app.route('/api/files/<int:file_id>', methods=['DELETE'])
+def delete_file(file_id):
+    """Belirli bir EKG dosyasını ID'sine göre siler."""
+    try:
+        conn = get_db_connection()
+        # Önce dosyanın var olup olmadığını kontrol edebiliriz (isteğe bağlı)
+        file_exists = conn.execute('SELECT id FROM ekg_files WHERE id = ?', (file_id,)).fetchone()
+        if not file_exists:
+            conn.close()
+            return jsonify({"message": "Dosya bulunamadı."}), 404
+        
+        conn.execute('DELETE FROM ekg_files WHERE id = ?', (file_id,))
+        conn.commit()
+        conn.close()
+        logger.info(f"Dosya ID: {file_id} başarıyla silindi.")
+        return jsonify({"message": "Dosya başarıyla silindi."})
+    except Exception as e:
+        logger.error(f"Dosya silinirken hata oluştu (ID: {file_id}): {e}")
+        # Veritabanı bağlantısı açık kaldıysa kapat
+        if 'conn' in locals() and conn:
+            conn.close()
+        return jsonify({"message": "Dosya silinirken sunucuda bir hata oluştu."}), 500
+    
 @app.route('/api/analyze/<int:file_id>', methods=['GET'])
 def analyze_file(file_id):
     if processor is None:

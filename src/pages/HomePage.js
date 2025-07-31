@@ -1,18 +1,14 @@
+// src/pages/HomePage.js
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function HomePage({ patients, onSelectPatient, onAddPatient, onEditPatient, onDeletePatient }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const navigate = useNavigate();
-
-  const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.tc.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleSelectAndNavigate = (patient) => {
+  
+  const handleSelect = (patient) => {
+    // Değişiklik yok, App.js'e tam hasta objesini gönderiyoruz.
     onSelectPatient(patient);
-    navigate('/detaylar');
   };
 
   return (
@@ -34,19 +30,20 @@ function HomePage({ patients, onSelectPatient, onAddPatient, onEditPatient, onDe
         onChange={(e) => setSearchTerm(e.target.value)}
       />
       <div className="patient-list">
-        {filteredPatients.map(patient => (
-          <div key={patient.id} className="patient-list-item">
-            <div className="patient-list-info" onClick={() => handleSelectAndNavigate(patient)}>
-              <h3 className="patient-name">{patient.name}</h3>
-              <p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender}</p>
+        {patients
+          .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.tc.includes(searchTerm))
+          .map(patient => (
+            <div key={patient.id} className="patient-list-item">
+              <div className="patient-list-info" onClick={() => handleSelect(patient)}>
+                <h3 className="patient-name">{patient.name}</h3>
+                <p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender}</p>
+              </div>
+              <div className="patient-list-actions">
+                <button className="btn btn-primary btn-sm" onClick={() => onEditPatient(patient)}>Düzenle</button>
+                <button className="btn btn-danger btn-sm" onClick={() => onDeletePatient(patient.id)}>Sil</button>
+              </div>
             </div>
-            <div className="patient-list-actions">
-              <button className="btn btn-primary btn-sm" onClick={() => onEditPatient(patient)}>Düzenle</button>
-              <button className="btn btn-danger btn-sm" onClick={() => onDeletePatient(patient.id)}>Sil</button>
-            </div>
-          </div>
-        ))}
-        {filteredPatients.length === 0 && <p style={{textAlign: 'center', marginTop: '2rem'}}>Hasta bulunamadı veya henüz hiç hasta eklenmedi.</p>}
+          ))}
       </div>
     </div>
   );

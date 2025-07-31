@@ -15,45 +15,50 @@ ChartJS.register(
 const API_URL = 'http://127.0.0.1:5001/api';
 
 const ANOMALY_COLORS = {
-  'V': 'rgba(255, 99, 132, 0.3)',
-  'S': 'rgba(255, 159, 64, 0.3)',
-  'F': 'rgba(153, 102, 255, 0.3)',
-  'Q': 'rgba(75, 192, 192, 0.3)',
+    'V': { background: 'rgba(255, 99, 132, 0.3)', border: 'rgba(255, 99, 132, 0.5)' },
+    'S': { background: 'rgba(255, 159, 64, 0.3)', border: 'rgba(255, 159, 64, 0.5)' },
+    'F': { background: 'rgba(153, 102, 255, 0.3)', border: 'rgba(153, 102, 255, 0.5)' },
+    'Q': { background: 'rgba(75, 192, 192, 0.3)', border: 'rgba(75, 192, 192, 0.5)' },
 };
 
 function DetailsPage({ patient }) {
   const [files, setFiles] = useState([]);
-  const [activeFile, setActiveFile] = useState(null);
+  const [activeFileId, setActiveFileId] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const chartRef = useRef(null);
 
-  const fetchFiles = async () => {
-    if (!patient) return;
+  const fetchFiles = async (patientId) => {
+    if (!patientId) return;
     try {
-      const response = await fetch(`${API_URL}/patients/${patient.id}/files`);
+      const response = await fetch(`${API_URL}/patients/${patientId}/files`);
       const data = await response.json();
       setFiles(data);
-      // Eğer dosya varsa ve henüz aktif dosya seçilmemişse, ilkini seç
-      if (data.length > 0 && !activeFile) {
+      // Eğer hasta yeni seçilmişse veya dosya silindikten sonra hala dosya varsa,
+      // ve aktif bir dosya seçili değilse, ilkini seç.
+      if (data.length > 0 && activeFileId === null) {
         handleFileSelect(data[0]);
+      } else if (data.length === 0) {
+        // Hiç dosya kalmadıysa her şeyi temizle
+        setActiveFileId(null);
+        setAnalysisResult(null);
       }
-    } catch (error) {
-      console.error("Dosyalar getirilirken hata:", error);
+    } catch (error) { 
+      console.error("Dosyalar getirilirken hata:", error); 
     }
   };
 
   useEffect(() => {
-    // Hasta değiştiğinde dosyaları yeniden getir ve state'i sıfırla
-    setFiles([]);
-    setActiveFile(null);
-    setAnalysisResult(null);
-    fetchFiles();
+    if (patient) {
+      setActiveFileId(null); // Hasta değiştiğinde aktif dosyayı sıfırla
+      setAnalysisResult(null);
+      fetchFiles(patient.id);
+    }
   }, [patient]);
 
   const handleFileSelect = async (file) => {
-    if (!file) return;
-    setActiveFile(file);
+    if (!file || isLoading) return;
+    setActiveFileId(file.id);
     setIsLoading(true);
     setAnalysisResult(null);
     try {
@@ -64,72 +69,84 @@ function DetailsPage({ patient }) {
       } else {
         alert(`Analiz hatası: ${result.error}`);
       }
-    } catch (error) {
-      console.error("Analiz hatası:", error);
-      alert("Analiz sırasında sunucu ile iletişim kurulamadı.");
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error) { 
+      console.error("Analiz hatası:", error); 
+    } 
+    finally { setIsLoading(false); }
   };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file || !patient) return;
-
     const reader = new FileReader();
     reader.onload = async (e) => {
       const content = e.target.result;
       const ekgData = content.split(/[\n,;]/).map(val => parseFloat(val.trim())).filter(v => !isNaN(v));
-      
-      if (ekgData.length < 100) {
-        alert("Dosya geçerli EKG verisi içermiyor veya çok kısa.");
-        return;
-      }
-
-      const newFilePayload = {
-        name: file.name,
-        uploadedAt: new Date().toISOString().split('T')[0],
-        data: ekgData,
-        samplingRate: 1000 // Varsayılan, gerekirse bu da kullanıcıdan alınabilir
-      };
-
+      if (ekgData.length < 100) { alert("Geçersiz EKG verisi."); return; }
+      const payload = { name: file.name, uploadedAt: new Date().toISOString().split('T')[0], data: ekgData, samplingRate: 1000 };
       try {
-        const response = await fetch(`${API_URL}/patients/${patient.id}/files`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newFilePayload),
-        });
-        if (response.ok) {
-          await fetchFiles(); // Dosya listesini yenile
-        } else {
-          alert("Dosya yüklenirken bir hata oluştu.");
+        const res = await fetch(`${API_URL}/patients/${patient.id}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) { 
+          // Yüklemeden sonra dosya listesini yenile
+          await fetchFiles(patient.id);
+        } else { 
+          alert("Dosya yüklenemedi."); 
         }
-      } catch (error) {
-        console.error("Dosya yükleme hatası:", error);
-        alert("Dosya yüklenirken sunucuya bağlanılamadı.");
-      }
+      } catch (error) { console.error("Dosya yükleme hatası:", error); }
     };
     reader.readAsText(file);
     event.target.value = null;
   };
   
+  // --- YENİ DOSYA SİLME FONKSİYONU ---
+  const handleFileDelete = async (fileIdToDelete, event) => {
+    event.stopPropagation(); // Butona tıklamanın, <li>'nin tıklama olayını tetiklemesini engelle
+    
+    if (window.confirm("Bu EKG kaydını kalıcı olarak silmek istediğinizden emin misiniz?")) {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/files/${fileIdToDelete}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          // Eğer silinen dosya o an aktif olan dosyaysa, analiz sonucunu temizle
+          if (activeFileId === fileIdToDelete) {
+            setActiveFileId(null);
+            setAnalysisResult(null);
+          }
+          // Silme işlemi başarılıysa dosya listesini yenile
+          await fetchFiles(patient.id);
+        } else {
+          alert("Dosya silinirken bir hata oluştu.");
+        }
+      } catch (error) {
+        console.error("Dosya silme hatası:", error);
+        alert("Dosya silinirken sunucuya bağlanılamadı.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   const getAnnotations = () => {
-    if (!analysisResult?.predictions) return {};
+    if (!analysisResult?.predictions || !analysisResult?.r_peaks) return {};
     const annotations = {};
-    const beatWidth = 187; // 1.5 saniye @ 125Hz
+    const beatWidth = (analysisResult.display_signal.length / analysisResult.r_peaks.length) * 0.7;
     analysisResult.predictions
       .filter(p => p.class_name !== 'N')
       .forEach((beat, index) => {
         const rPeakIndex = analysisResult.r_peaks[beat.beat_id];
         if (rPeakIndex === undefined) return;
-        // Önemli Düzeltme: R-peak'ler normalize sinyalde bulundu, ama biz display_signal'i gösteriyoruz.
-        // İkisinin de uzunluğu aynı olmalı (downsample sonrası). Bu yüzden indeksler eşleşir.
+        const color = ANOMALY_COLORS[beat.class_name] || ANOMALY_COLORS['Q'];
         annotations[`box-${index}`] = {
-          type: 'box',
-          xMin: Math.max(0, rPeakIndex - beatWidth / 2),
-          xMax: rPeakIndex + beatWidth / 2,
-          backgroundColor: ANOMALY_COLORS[beat.class_name] || 'rgba(201, 203, 207, 0.3)',
-          borderColor: 'transparent',
+          type: 'box', xMin: Math.max(0, rPeakIndex - beatWidth / 2),
+          xMax: rPeakIndex + beatWidth / 2, backgroundColor: color.background,
+          borderColor: color.border, borderWidth: 1,
+          label: {
+             content: beat.class_name, display: true, color: '#333',
+             font: { weight: 'bold', size: 10 }, position: 'start', yAdjust: -5,
+          }
         };
       });
     return annotations;
@@ -138,14 +155,13 @@ function DetailsPage({ patient }) {
   const chartOptions = {
     responsive: true, maintainAspectRatio: false, animation: false,
     plugins: {
-      legend: { display: false }, title: { display: true, text: `EKG Sinyali: ${activeFile?.file_name || ''}` },
+      legend: { display: false }, title: { display: true, text: `EKG Sinyali: ${files.find(f => f.id === activeFileId)?.file_name || ''}` },
       zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, mode: 'x' } },
       annotation: { annotations: getAnnotations() },
     },
     scales: { x: { title: { display: true, text: 'Örneklem' } }, y: { title: { display: true, text: 'Genlik (mV)' } } }
   };
   
-  // GRAFİK VERİSİ ARTIK `display_signal`'DEN GELİYOR
   const chartData = {
     labels: analysisResult?.display_signal?.map((_, i) => i) || [],
     datasets: [{
@@ -154,10 +170,6 @@ function DetailsPage({ patient }) {
     }],
   };
   
-  const clinicalFeatures = analysisResult?.clinical_features;
-  const aiSummary = analysisResult?.ai_summary;
-  const patientMeds = patient?.medications ? (typeof patient.medications === 'string' ? JSON.parse(patient.medications) : patient.medications) : [];
-
   if (!patient) {
     return (
       <div className="page" style={{ textAlign: 'center', padding: '4rem' }}>
@@ -167,52 +179,62 @@ function DetailsPage({ patient }) {
     );
   }
 
+  const clinicalFeatures = analysisResult?.clinical_features;
+  const aiSummary = analysisResult?.ai_summary;
+  const patientMeds = patient.medications ? (typeof patient.medications === 'string' ? JSON.parse(patient.medications) : patient.medications) : [];
+
   return (
     <div className="page">
-      <div className="page-header">
-        <h1>{patient.name}</h1>
-        <p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender}</p>
-      </div>
-
+      <div className="page-header"><h1>{patient.name}</h1><p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender}</p></div>
       <div className="patient-card" style={{marginBottom: '1.5rem'}}>
         <h3>EKG Kayıtları ({files.length})</h3>
         <ul className="ekg-file-list">
-          {files.map(file => <li key={file.id} className={file.id === activeFile?.id ? 'active-file' : ''} onClick={() => handleFileSelect(file)}>{file.file_name} <span>{file.uploaded_at}</span></li>)}
-          {files.length === 0 && <p>Bu hasta için EKG kaydı bulunamadı.</p>}
+          {files.map(file => (
+            <li key={file.id} className={file.id === activeFileId ? 'active-file' : ''} onClick={() => handleFileSelect(file)}>
+              <div style={{ flexGrow: 1, cursor: 'pointer' }}>
+                {file.file_name} <span>{file.uploaded_at}</span>
+              </div>
+              <button 
+                onClick={(e) => handleFileDelete(file.id, e)}
+                className="btn btn-danger btn-sm"
+                style={{ marginLeft: '1rem', padding: '0.2rem 0.5rem' }}
+                title="Bu kaydı sil"
+              >
+                Sil
+              </button>
+            </li>
+          ))}
+          {files.length === 0 && !isLoading && <p>Bu hasta için EKG kaydı bulunamadı.</p>}
         </ul>
         <label htmlFor="patient-file-upload" className="btn btn-secondary" style={{width: '100%', textAlign: 'center', marginTop: '1rem'}}>+ Yeni Kayıt Yükle</label>
         <input id="patient-file-upload" type="file" style={{display: 'none'}} onChange={handleFileUpload} accept=".csv,.txt,.dat"/>
       </div>
-      
       <div className="chart-container-full" style={{ marginBottom: '1rem', position: 'relative' }}>
         {isLoading && <div className="loading-overlay"><span>Analiz yapılıyor...</span></div>}
-        <div style={{height: '350px'}}>
-          <Line ref={chartRef} options={chartOptions} data={chartData} />
-        </div>
+        <div style={{height: '350px'}}><Line ref={chartRef} options={chartOptions} data={chartData} /></div>
       </div>
       <button onClick={() => chartRef.current?.resetZoom()} className="btn btn-primary btn-sm" style={{marginBottom: '1.5rem'}}>Yakınlaştırmayı Sıfırla</button>
-
       <div className="analysis-grid-bottom">
         <div className="patient-card">
           <h3>Analiz Sonuçları</h3>
-          {clinicalFeatures ? (
+          {isLoading ? <p>Hesaplanıyor...</p> : analysisResult ? (
             <div>
-              <p><strong>Kalp Hızı:</strong> {clinicalFeatures.heart_rate?.toFixed(0) || '--'} bpm</p>
-              <p><strong>QRS Süresi:</strong> {clinicalFeatures.qrs_duration?.toFixed(0) || '--'} ms</p>
-              <p><strong>PR Aralığı:</strong> {clinicalFeatures.pr_interval?.toFixed(0) || '--'} ms</p>
-              <p><strong>QT Aralığı:</strong> {clinicalFeatures.qt_interval?.toFixed(0) || '--'} ms</p>
+              <p><strong>Kalp Hızı:</strong> {clinicalFeatures?.heart_rate?.toFixed(0) || '--'} bpm</p>
+              <p><strong>QRS Süresi:</strong> {clinicalFeatures?.qrs_duration?.toFixed(0) || '--'} ms</p>
+              <p><strong>PR Aralığı:</strong> {clinicalFeatures?.pr_interval?.toFixed(0) || '--'} ms</p>
+              <p><strong>QT Aralığı:</strong> {clinicalFeatures?.qt_interval?.toFixed(0) || '--'} ms</p>
             </div>
-          ) : !isLoading && <p>Analiz için bir kayıt seçin.</p>}
+          ) : <p>Analiz için bir kayıt seçin.</p>}
         </div>
         <div className="patient-card">
           <h3>Yapay Zeka Bulguları</h3>
-          {aiSummary ? (
+          {isLoading ? <p>Hesaplanıyor...</p> : analysisResult ? (
             <div>
-              <p><strong>Aritmi Riski:</strong> {aiSummary.arrhythmia_level || '--'}</p>
+              <p><strong>Aritmi Riski:</strong> {aiSummary?.arrhythmia_level || '--'}</p>
               <p><strong>Potansiyel Bulgular:</strong></p>
-              <ul>{aiSummary.risk_findings?.map((f, i) => <li key={i}>{f}</li>)}</ul>
+              <ul>{aiSummary?.risk_findings?.map((f, i) => <li key={i}>{f}</li>) || <li>Bulgu yok.</li>}</ul>
             </div>
-          ) : !isLoading && <p>Analiz bekleniyor.</p>}
+          ) : <p>Analiz bekleniyor.</p>}
         </div>
         <div className="patient-card">
           <h3>Hasta Notları ve İlaçlar</h3>

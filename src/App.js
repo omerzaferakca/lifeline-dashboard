@@ -1,5 +1,7 @@
+// src/App.js
+
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import './App.css';
 
 import Sidebar from './components/Sidebar';
@@ -12,11 +14,12 @@ const API_URL = 'http://127.0.0.1:5001/api';
 
 const AppLayout = () => {
   const [patients, setPatients] = useState([]);
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  // --- DEĞİŞİKLİK: Sadece ID'yi tutmak daha güvenilirdir ---
+  const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [patientToEdit, setPatientToEdit] = useState(null);
+  const navigate = useNavigate();
 
-  // Hastaları backend'den getiren fonksiyon
   const fetchPatients = async () => {
     try {
       const response = await fetch(`${API_URL}/patients`);
@@ -24,75 +27,50 @@ const AppLayout = () => {
       setPatients(data);
     } catch (error) {
       console.error("Hastalar getirilirken hata oluştu:", error);
-      alert("Sunucu ile bağlantı kurulamadı. Lütfen backend'in çalıştığından emin olun.");
     }
   };
 
-  // Bileşen ilk yüklendiğinde hastaları getir
   useEffect(() => {
     fetchPatients();
   }, []);
+  
+  const handleSelectPatient = (patient) => {
+    setSelectedPatientId(patient.id);
+    navigate('/detaylar');
+  };
 
   const handleOpenModal = (patient = null) => {
     setPatientToEdit(patient);
     setIsModalOpen(true);
   };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setPatientToEdit(null);
-  };
+  const handleCloseModal = () => { setIsModalOpen(false); setPatientToEdit(null); };
 
   const handleSavePatient = async (formData) => {
     const isEditing = !!formData.id;
     const url = isEditing ? `${API_URL}/patients/${formData.id}` : `${API_URL}/patients`;
     const method = isEditing ? 'PUT' : 'POST';
-
     try {
-      const response = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
-        await fetchPatients(); // Listeyi yenile
-        handleCloseModal();
-      } else {
-        alert("Hasta kaydedilirken bir hata oluştu.");
-      }
-    } catch (error) {
-      console.error("Hasta kaydetme hatası:", error);
-      alert("Sunucuya bağlanılamadı.");
-    }
+      const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      if (response.ok) { await fetchPatients(); handleCloseModal(); } 
+      else { alert("Hasta kaydedilirken hata."); }
+    } catch (error) { console.error("Hasta kaydetme hatası:", error); }
   };
 
   const handleDeletePatient = async (patientId) => {
-    if (window.confirm("Bu hastayı ve tüm EKG kayıtlarını kalıcı olarak silmek istediğinizden emin misiniz?")) {
+    if (window.confirm("Bu hastayı ve tüm kayıtlarını kalıcı olarak silmek istediğinizden emin misiniz?")) {
       try {
         const response = await fetch(`${API_URL}/patients/${patientId}`, { method: 'DELETE' });
         if (response.ok) {
-          await fetchPatients(); // Listeyi yenile
-          if (selectedPatient?.id === patientId) {
-            setSelectedPatient(null);
-          }
-        } else {
-          alert("Hasta silinirken bir hata oluştu.");
-        }
-      } catch (error) {
-        console.error("Hasta silme hatası:", error);
-        alert("Sunucuya bağlanılamadı.");
-      }
+          await fetchPatients();
+          if (selectedPatientId === patientId) { setSelectedPatientId(null); }
+        } else { alert("Hasta silinirken hata."); }
+      } catch (error) { console.error("Hasta silme hatası:", error); }
     }
-  };
-
-  const handleSelectPatient = (patient) => {
-    setSelectedPatient(patient);
   };
 
   return (
     <div className="app-container">
-      <Sidebar onHomeClick={() => setSelectedPatient(null)} />
+      <Sidebar onHomeClick={() => setSelectedPatientId(null)} />
       <main className="main-content">
         <Routes>
           <Route
@@ -109,25 +87,16 @@ const AppLayout = () => {
           />
           <Route
             path="/detaylar"
-            element={<DetailsPage patient={selectedPatient} />}
+            // --- DEĞİŞİKLİK: DetailsPage'e tam hasta objesini ve ID'yi gönder ---
+            element={<DetailsPage patient={patients.find(p => p.id === selectedPatientId)} />}
           />
           <Route path="/hakkinda" element={<AboutPage />} />
         </Routes>
       </main>
-      <PatientModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onSave={handleSavePatient}
-        patient={patientToEdit}
-      />
+      <PatientModal isOpen={isModalOpen} onClose={handleCloseModal} onSave={handleSavePatient} patient={patientToEdit} />
     </div>
   );
 };
 
-const App = () => (
-  <Router>
-    <AppLayout />
-  </Router>
-);
-
+const App = () => (<Router><AppLayout /></Router>);
 export default App;
