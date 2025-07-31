@@ -1,10 +1,7 @@
-# main.py - EN OKUNAKLI, TAM VE HATALARI DÜZELTİLMİŞ VERSİYON
-
-# --- Gerekli Kütüphaneler ---
 import sqlite3
 import json
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -16,89 +13,110 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # --- Logging Ayarları ---
-# Uygulama genelinde olayları kaydetmek için bir logger yapılandırıyoruz.
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
 # ############################################################################
 # ##                          VERİTABANI İŞLEMLERİ                           ##
 # ############################################################################
-
 DATABASE_FILE = 'database.db'
 
 def get_db_connection():
-    """Veritabanına bir bağlantı oluşturur ve döndürür."""
     conn = sqlite3.connect(DATABASE_FILE)
-    # Sonuçları sözlük gibi erişilebilir hale getirir (örn: row['name'])
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    """
-    Veritabanı şemasını (tabloları) kontrol eder ve eğer yoksa oluşturur.
-    Sunucu ilk başladığında bir kez çalıştırılır.
-    """
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Hastalar tablosu
-        cursor.execute('''
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS patients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             tc TEXT UNIQUE NOT NULL,
             age INTEGER,
             gender TEXT,
             phone TEXT,
-            medications TEXT, -- JSON formatında ['ilaç1', 'ilaç2']
+            medications TEXT,
             complaints TEXT
         )
-        ''')
-        
-        # EKG Dosyaları tablosu
-        cursor.execute('''
+    ''')
+    
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS ekg_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             patient_id INTEGER NOT NULL,
-            file_name TEXT NOT NULL,
-            uploaded_at TEXT NOT NULL,
+            file_name TEXT,
+            uploaded_at TEXT,
             sampling_rate INTEGER,
-            ekg_data BLOB NOT NULL, -- Ham EKG verisini ikili formatta sakla
+            ekg_data BLOB,
             FOREIGN KEY (patient_id) REFERENCES patients (id) ON DELETE CASCADE
         )
-        ''')
-        
-        conn.commit()
-        conn.close()
-        logger.info("Veritabanı başarıyla başlatıldı veya zaten mevcuttu.")
-    except Exception as e:
-        logger.critical(f"Veritabanı başlatılırken KRİTİK HATA: {e}")
+    ''')
+    
+    conn.commit()
+    conn.close()
+    logger.info("Veritabanı başarıyla başlatıldı.")
 
 
 # ############################################################################
 # ##                          CNN MODEL MİMARİSİ                            ##
 # ############################################################################
-# Bu bölümde bir değişiklik yok.
 class Swish(nn.Module):
-    def forward(self, x): return x * torch.sigmoid(x)
+    def forward(self, x):
+        return x * torch.sigmoid(x)
+
 class ConvNormPool(nn.Module):
     def __init__(self, input_size, hidden_size, kernel_size):
-        super().__init__(); self.kernel_size = kernel_size; self.conv_1 = nn.Conv1d(input_size, hidden_size, kernel_size); self.conv_2 = nn.Conv1d(hidden_size, hidden_size, kernel_size); self.conv_3 = nn.Conv1d(hidden_size, hidden_size, kernel_size); self.swish_1, self.swish_2, self.swish_3 = Swish(), Swish(), Swish(); self.normalization_1 = nn.BatchNorm1d(hidden_size); self.normalization_2 = nn.BatchNorm1d(hidden_size); self.normalization_3 = nn.BatchNorm1d(hidden_size); self.pool = nn.MaxPool1d(kernel_size=2)
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.conv_1 = nn.Conv1d(input_size, hidden_size, kernel_size)
+        self.conv_2 = nn.Conv1d(hidden_size, hidden_size, kernel_size)
+        self.conv_3 = nn.Conv1d(hidden_size, hidden_size, kernel_size)
+        self.swish_1, self.swish_2, self.swish_3 = Swish(), Swish(), Swish()
+        self.normalization_1 = nn.BatchNorm1d(hidden_size)
+        self.normalization_2 = nn.BatchNorm1d(hidden_size)
+        self.normalization_3 = nn.BatchNorm1d(hidden_size)
+        self.pool = nn.MaxPool1d(kernel_size=2)
+
     def forward(self, input):
-        conv1 = self.conv_1(input); x = self.normalization_1(conv1); x = self.swish_1(x); x = F.pad(x, (self.kernel_size - 1, 0)); x = self.conv_2(x); x = self.normalization_2(x); x = self.swish_2(x); x = F.pad(x, (self.kernel_size - 1, 0)); conv3 = self.conv_3(x); x = self.normalization_3(conv1 + conv3); x = self.swish_3(x); x = F.pad(x, (self.kernel_size - 1, 0)); return self.pool(x)
+        conv1 = self.conv_1(input)
+        x = self.normalization_1(conv1)
+        x = self.swish_1(x)
+        x = F.pad(x, (self.kernel_size - 1, 0))
+        x = self.conv_2(x)
+        x = self.normalization_2(x)
+        x = self.swish_2(x)
+        x = F.pad(x, (self.kernel_size - 1, 0))
+        conv3 = self.conv_3(x)
+        x = self.normalization_3(conv1 + conv3)
+        x = self.swish_3(x)
+        x = F.pad(x, (self.kernel_size - 1, 0))
+        return self.pool(x)
+
 class CNN(nn.Module):
     def __init__(self, input_size=1, hid_size=128, kernel_size=5, num_classes=5):
-        super().__init__(); self.conv1 = ConvNormPool(input_size, hid_size, kernel_size); self.conv2 = ConvNormPool(hid_size, hid_size//2, kernel_size); self.conv3 = ConvNormPool(hid_size//2, hid_size//4, kernel_size); self.avgpool = nn.AdaptiveAvgPool1d(1); self.fc = nn.Linear(hid_size//4, num_classes)
+        super().__init__()
+        self.conv1 = ConvNormPool(input_size, hid_size, kernel_size)
+        self.conv2 = ConvNormPool(hid_size, hid_size//2, kernel_size)
+        self.conv3 = ConvNormPool(hid_size//2, hid_size//4, kernel_size)
+        self.avgpool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Linear(hid_size//4, num_classes)
+
     def forward(self, input):
-        x = self.conv1(input); x = self.conv2(x); x = self.conv3(x); x = self.avgpool(x); x = x.view(-1, x.size(1) * x.size(2)); return F.softmax(self.fc(x), dim=1)
+        x = self.conv1(input)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.avgpool(x)
+        x = x.view(-1, x.size(1) * x.size(2))
+        return F.softmax(self.fc(x), dim=1)
 
 
 # ############################################################################
 # ##                    GELİŞMİŞ ECG PROCESSOR SINIFI                       ##
 # ############################################################################
-
 class ECGProcessor:
     def __init__(self, model_path: str = "model.pth", device: str = "cpu"):
         self.device = device
@@ -106,151 +124,385 @@ class ECGProcessor:
         self.model_path = model_path
         self.class_names = {0: "N", 1: "S", 2: "V", 3: "F", 4: "Q"}
         self.load_model()
-    
+
     def load_model(self):
         try:
             self.model = CNN(num_classes=len(self.class_names), hid_size=128)
             self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
-            self.model.eval()
-            self.model.to(self.device)
+            self.model.eval().to(self.device)
             logger.info(f"Model başarıyla yüklendi: {self.model_path}")
         except Exception as e:
             logger.error(f"Model yüklenirken hata: {e}")
             self.model = None
             raise
 
-    def calculate_clinical_metrics(self, ecg_signals: Dict, info: Dict) -> Dict:
-        """
-        NeuroKit2 çıktısından klinik metrikleri güvenli bir şekilde hesaplar.
-        "Ambiguous" hatasını önlemek için daha sağlam hale getirildi.
-        """
-        results = {
-            "heart_rate": None,
-            "qrs_duration": None,
-            "pr_interval": None,
-            "qt_interval": None
-        }
-        try:
-            # Kalp Hızı
-            hr_data = ecg_signals.get("ECG_Rate")
-            if hr_data is not None:
-                # np.nanmean, NaN değerleri yok sayarak ortalama alır.
-                hr_mean = np.nanmean(hr_data)
-                # Sonucun hala geçerli bir sayı olup olmadığını kontrol et
-                if np.isfinite(hr_mean):
-                    results["heart_rate"] = float(hr_mean)
-            
-            # Diğer metrikler (QRS, PR, QT)
-            metric_keys = {
-                "ECG_QRS_Durations": "qrs_duration",
-                "ECG_PR_Intervals": "pr_interval",
-                "ECG_QT_Intervals": "qt_interval"
-            }
-            
-            for nk_key, result_key in metric_keys.items():
-                data_array = info.get(nk_key)
-                if data_array is not None:
-                    # Gelen veriyi her zaman bir numpy dizisine çevir
-                    values = np.array(data_array, dtype=np.float64).flatten()
-                    # Sadece geçerli (sonlu) sayısal değerleri al
-                    finite_values = values[np.isfinite(values)]
-                    if finite_values.size > 0:
-                        mean_val = np.mean(finite_values)
-                        # saniyeden milisaniyeye çevir ve float yap
-                        results[result_key] = float(mean_val * 1000)
-        except Exception as e:
-            logger.warning(f"Klinik metrikler hesaplanırken bir istisna oluştu: {e}")
-
-        return results
-
     def predict_beats(self, beats: np.ndarray) -> List[Dict]:
-        if self.model is None or not len(beats): return []
+        if self.model is None or not len(beats):
+            return []
+        
         predictions = []
         with torch.no_grad():
             for i, beat in enumerate(beats):
                 tensor = torch.FloatTensor(beat).unsqueeze(0).unsqueeze(0).to(self.device)
-                probabilities = self.model(tensor)
-                confidence, class_idx = torch.max(probabilities, dim=1)
-                
-                # Sonuçları JSON uyumlu standart Python tiplerine çevir
+                probs = self.model(tensor)
+                conf, idx = torch.max(probs, dim=1)
                 predictions.append({
                     "beat_id": int(i),
-                    "predicted_class": int(class_idx.item()),
-                    "class_name": self.class_names.get(class_idx.item(), "Q"),
-                    "confidence": float(confidence.item())
+                    "predicted_class": int(idx.item()),
+                    "class_name": self.class_names.get(idx.item(), "Q"),
+                    "confidence": float(conf.item())
                 })
         return predictions
 
     def summarize_ai_findings(self, predictions: List[Dict]) -> Dict:
         if not predictions:
-            return {"arrhythmia_level": "Bilinmiyor", "risk_findings": ["Analiz için yeterli kalp atışı bulunamadı."]}
-        
+            return {
+                "arrhythmia_level": "Bilinmiyor",
+                "risk_findings": ["Analiz için yeterli kalp atışı bulunamadı."]
+            }
+
         counts = {label: 0 for label in self.class_names.values()}
         for p in predictions:
             counts[self.class_names.get(p['predicted_class'], "Q")] += 1
-            
-        total_beats = len(predictions)
-        v_ratio = counts["V"] / total_beats if total_beats > 0 else 0
-        s_ratio = counts["S"] / total_beats if total_beats > 0 else 0
-        
+
+        total = len(predictions)
+        v_ratio = counts["V"] / total if total > 0 else 0
+        s_ratio = counts["S"] / total if total > 0 else 0
         level = "Düşük"
+
         if counts["V"] > 1 or v_ratio > 0.05:
             level = "Yüksek"
         elif counts["V"] == 1 or s_ratio > 0.2:
             level = "Orta"
-            
+
         findings = []
-        if counts["V"] > 0: findings.append(f"{counts['V']} adet ventriküler atım (V) tespit edildi.")
-        if counts["S"] > 5: findings.append(f"Sık supraventriküler atım (S) gözlendi.")
-        if not findings: findings.append("Belirgin bir ritim bozukluğu bulgusuna rastlanmadı.")
-        
+        if counts["V"] > 0:
+            findings.append(f"{counts['V']} adet ventriküler atım (V) tespit edildi.")
+        if counts["S"] > 5:
+            findings.append(f"Sık supraventriküler atım (S) gözlendi.")
+        if not findings:
+            findings.append("Belirgin bir ritim bozukluğu bulgusuna rastlanmadı.")
+
         return {"arrhythmia_level": level, "risk_findings": findings}
 
     def extract_beats(self, signal: np.ndarray, r_peaks: list, window: int = 187) -> np.ndarray:
-        if not r_peaks: return np.array([])
-        half = window // 2; beats = []
+        if not r_peaks:
+            return np.array([])
+        
+        half = window // 2
+        beats = []
         for r in r_peaks:
             start, end = max(0, r - half), min(len(signal), r + half)
             beat = signal[start:end]
-            if len(beat) < window: beat = np.pad(beat, (0, window - len(beat)), 'edge')
-            elif len(beat) > window: beat = beat[:window]
+            if len(beat) < window:
+                beat = np.pad(beat, (0, window - len(beat)), 'edge')
+            elif len(beat) > window:
+                beat = beat[:window]
             beats.append(beat)
         return np.array(beats)
+
+    def _safe_wave_check(self, waves: Dict, wave_key: str) -> Optional[np.ndarray]:
+        """Güvenli wave kontrolü - None ve boş array kontrolü"""
+        try:
+            wave_data = waves.get(wave_key)
+            logger.debug(f"Wave {wave_key}: type={type(wave_data)}, value={wave_data}")
+            
+            # İlk None kontrolü
+            if wave_data is None:
+                logger.debug(f"Wave {wave_key} is None")
+                return None
+            
+            # Liste veya array kontrolü
+            if hasattr(wave_data, '__len__') and len(wave_data) == 0:
+                logger.debug(f"Wave {wave_key} is empty")
+                return None
+            
+            # NumPy array'e çevir
+            wave_array = np.asarray(wave_data)
+            logger.debug(f"Wave {wave_key} array shape: {wave_array.shape}, dtype: {wave_array.dtype}")
+            
+            # Boş array kontrolü
+            if wave_array.size == 0:
+                logger.debug(f"Wave {wave_key} array is empty")
+                return None
+            
+            # Tek boyutlu array'e çevir
+            wave_array = wave_array.flatten()
+            
+            # NaN kontrolü - tüm değerler NaN mı?
+            if wave_array.size > 0 and np.all(np.isnan(wave_array)):
+                logger.debug(f"Wave {wave_key} all values are NaN")
+                return None
+            
+            # Geçerli (NaN olmayan) değerler var mı?
+            valid_mask = ~np.isnan(wave_array)
+            if not np.any(valid_mask):
+                logger.debug(f"Wave {wave_key} no valid values")
+                return None
+                
+            return wave_array[valid_mask]
+            
+        except Exception as e:
+            logger.error(f"Wave {wave_key} kontrolünde hata: {e}", exc_info=True)
+            return None
+
+    def _calculate_clinical_metrics(self, ecg_cleaned: np.ndarray, r_peaks: list, fs_in: int) -> Dict:
+        """Klinik metrikleri güvenli şekilde hesapla"""
+        clinical_metrics = {
+            "heart_rate": None,
+            "qrs_duration": None,
+            "pr_interval": None,
+            "qt_interval": None
+        }
         
+        if len(r_peaks) < 3:
+            logger.warning("Yeterli R-peak bulunamadı, klinik metrikler hesaplanamıyor")
+    def _manual_wave_detection(self, signal: np.ndarray, r_peaks: list, fs: int) -> Dict:
+        """Manuel dalga tespiti - basit yaklaşım"""
+        waves = {}
+        try:
+            # Basit yaklaşım: R-peak etrafında sabit mesafeler
+            window_ms = 200  # ms
+            window_samples = int(window_ms * fs / 1000)
+            
+            q_peaks, s_peaks, t_peaks = [], [], []
+            
+            for r_peak in r_peaks:
+                # Q wave (R'den önce)
+                q_start = max(0, r_peak - window_samples//4)
+                q_end = r_peak
+                if q_start < q_end:
+                    q_segment = signal[q_start:q_end]
+                    q_min_idx = np.argmin(q_segment)
+                    q_peaks.append(q_start + q_min_idx)
+                
+                # S wave (R'den sonra)
+                s_start = r_peak
+                s_end = min(len(signal), r_peak + window_samples//4)
+                if s_start < s_end:
+                    s_segment = signal[s_start:s_end]
+                    s_min_idx = np.argmin(s_segment)
+                    s_peaks.append(s_start + s_min_idx)
+                
+                # T wave (R'den sonra, daha uzak)
+                t_start = r_peak + window_samples//4
+                t_end = min(len(signal), r_peak + window_samples)
+                if t_start < t_end:
+                    t_segment = signal[t_start:t_end]
+                    t_max_idx = np.argmax(t_segment)
+                    t_peaks.append(t_start + t_max_idx)
+            
+            waves = {
+                'ECG_Q_Peaks': np.array(q_peaks) if q_peaks else None,
+                'ECG_S_Offsets': np.array(s_peaks) if s_peaks else None,
+                'ECG_T_Offsets': np.array(t_peaks) if t_peaks else None,
+                'ECG_P_Onsets': None,  # P wave tespiti daha karmaşık
+                'ECG_R_Onsets': np.array(r_peaks) if r_peaks else None,
+            }
+            
+            logger.debug("Manuel wave detection tamamlandı")
+            
+        except Exception as e:
+            logger.error(f"Manuel wave detection hatası: {e}")
+            waves = {}
+            
+        return waves
+
+        try:
+            # Kalp Hızı Hesaplama
+            logger.debug("Kalp hızı hesaplanıyor...")
+            hr = nk.ecg_rate(r_peaks, sampling_rate=fs_in, desired_length=len(ecg_cleaned))
+            hr_mean = np.nanmean(hr)
+            if np.isfinite(hr_mean):
+                clinical_metrics["heart_rate"] = float(hr_mean)
+                logger.debug(f"Kalp hızı: {hr_mean}")
+
+            # Dalga Delineasyonu - ALTERNATİF YÖNTEM
+            logger.debug("ECG delineation başlıyor...")
+            waves = {}
+            try:
+                # İlk olarak 'dwt' metodunu dene
+                _, waves = nk.ecg_delineate(ecg_cleaned, r_peaks, sampling_rate=fs_in, method="dwt")
+                logger.debug(f"DWT metodu başarılı. Waves keys: {list(waves.keys())}")
+            except Exception as e1:
+                logger.warning(f"DWT metodu başarısız: {e1}")
+                try:
+                    # Alternatif olarak 'peak' metodunu dene
+                    _, waves = nk.ecg_delineate(ecg_cleaned, r_peaks, sampling_rate=fs_in, method="peak")
+                    logger.debug(f"Peak metodu başarılı. Waves keys: {list(waves.keys())}")
+                except Exception as e2:
+                    logger.warning(f"Peak metodu da başarısız: {e2}")
+                    try:
+                        # Son çare olarak manuel yöntem
+                        logger.debug("Manuel delineation deneniyor...")
+                        waves = self._manual_wave_detection(ecg_cleaned, r_peaks, fs_in)
+                    except Exception as e3:
+                        logger.error(f"Tüm delineation metodları başarısız: {e3}")
+                        return clinical_metrics
+
+            # QRS Süresi (S_Offset - Q_Peak) - DİKKATLİ KONTROL
+            logger.debug("QRS süresi hesaplanıyor...")
+            q_peaks = self._safe_wave_check(waves, "ECG_Q_Peaks")
+            s_offsets = self._safe_wave_check(waves, "ECG_S_Offsets")
+            
+            logger.debug(f"Q_peaks: {q_peaks is not None}, S_offsets: {s_offsets is not None}")
+            
+            if q_peaks is not None and s_offsets is not None:
+                logger.debug(f"Q_peaks len: {len(q_peaks)}, S_offsets len: {len(s_offsets)}")
+                
+                # Uzunluk kontrolü
+                min_len = min(len(q_peaks), len(s_offsets))
+                if min_len > 0:
+                    try:
+                        qrs_durations = (s_offsets[:min_len] - q_peaks[:min_len]) / fs_in * 1000  # ms
+                        qrs_mean = np.nanmean(qrs_durations)
+                        logger.debug(f"QRS durations: {qrs_durations[:5]}...")  # İlk 5 değer
+                        if np.isfinite(qrs_mean) and qrs_mean > 0:
+                            clinical_metrics["qrs_duration"] = float(qrs_mean)
+                            logger.debug(f"QRS süresi: {qrs_mean}")
+                    except Exception as e:
+                        logger.error(f"QRS hesaplama hatası: {e}", exc_info=True)
+
+            # PR Aralığı (R_Onset - P_Onset) - DİKKATLİ KONTROL
+            logger.debug("PR aralığı hesaplanıyor...")
+            p_onsets = self._safe_wave_check(waves, "ECG_P_Onsets")
+            r_onsets = self._safe_wave_check(waves, "ECG_R_Onsets")
+            
+            if p_onsets is not None and r_onsets is not None:
+                min_len = min(len(p_onsets), len(r_onsets))
+                if min_len > 0:
+                    try:
+                        pr_intervals = (r_onsets[:min_len] - p_onsets[:min_len]) / fs_in * 1000  # ms
+                        pr_mean = np.nanmean(pr_intervals)
+                        if np.isfinite(pr_mean) and pr_mean > 0:
+                            clinical_metrics["pr_interval"] = float(pr_mean)
+                            logger.debug(f"PR aralığı: {pr_mean}")
+                    except Exception as e:
+                        logger.error(f"PR hesaplama hatası: {e}", exc_info=True)
+
+            # QT Aralığı (T_Offset - Q_Peak) - DİKKATLİ KONTROL
+            logger.debug("QT aralığı hesaplanıyor...")
+            t_offsets = self._safe_wave_check(waves, "ECG_T_Offsets")
+            
+            if q_peaks is not None and t_offsets is not None:
+                min_len = min(len(q_peaks), len(t_offsets))
+                if min_len > 0:
+                    try:
+                        qt_intervals = (t_offsets[:min_len] - q_peaks[:min_len]) / fs_in * 1000  # ms
+                        qt_mean = np.nanmean(qt_intervals)
+                        if np.isfinite(qt_mean) and qt_mean > 0:
+                            clinical_metrics["qt_interval"] = float(qt_mean)
+                            logger.debug(f"QT aralığı: {qt_mean}")
+                    except Exception as e:
+                        logger.error(f"QT hesaplama hatası: {e}", exc_info=True)
+
+        except Exception as e:
+            logger.error(f"Klinik metrik hesaplamasında genel hata: {e}", exc_info=True)
+
+        logger.debug(f"Final clinical metrics: {clinical_metrics}")
+        return clinical_metrics
+
     def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 1000, fs_out: int = 125) -> Dict:
         try:
             logger.info(f"EKG analizi başladı... Örneklem: {len(raw_ecg)}, Frekans: {fs_in}Hz")
             
-            ecg_signals, info = nk.ecg_process(raw_ecg, sampling_rate=fs_in)
-            clinical_metrics = self.calculate_clinical_metrics(ecg_signals, info)
+            # Giriş verisi kontrolü
+            if len(raw_ecg) == 0:
+                return {"success": False, "error": "Boş EKG verisi"}
+                
+            if not np.isfinite(raw_ecg).all():
+                logger.warning("EKG verisinde sonsuz/NaN değerler bulundu, temizleniyor...")
+                raw_ecg = np.nan_to_num(raw_ecg, nan=0.0, posinf=0.0, neginf=0.0)
             
-            # Grafik için genliği korunmuş temiz sinyal
-            display_signal = ecg_signals.get("ECG_Clean", raw_ecg)
+            # Adım 1: Sinyali temizle
+            try:
+                ecg_cleaned = nk.ecg_clean(raw_ecg, sampling_rate=fs_in, method='neurokit')
+            except Exception as e:
+                logger.warning(f"NeuroKit temizleme hatası, basit filtreleme kullanılıyor: {e}")
+                # Basit filtreleme
+                ecg_cleaned = raw_ecg - np.mean(raw_ecg)
+                ecg_cleaned = ecg_cleaned / (np.std(ecg_cleaned) + 1e-8)
             
-            # Model için yeniden örneklenmiş ve normalize edilmiş sinyal
-            downsampled = resample(display_signal, int(len(display_signal) * fs_out / fs_in))
-            normalized_signal = (downsampled - np.mean(downsampled)) / (np.std(downsampled) + 1e-8)
+            # Adım 2: R-peak'leri bul
+            try:
+                _, rpeaks_info = nk.ecg_peaks(ecg_cleaned, sampling_rate=fs_in)
+                r_peaks = rpeaks_info.get('ECG_R_Peaks', [])
+            except Exception as e:
+                logger.error(f"R-peak bulma hatası: {e}")
+                r_peaks = []
+
+            # Adım 3: Klinik metrikleri hesapla
+            clinical_metrics = self._calculate_clinical_metrics(ecg_cleaned, r_peaks, fs_in)
+
+            # Adım 4: Model için sinyali yeniden örnekle ve normalize et
+            try:
+                if fs_in != fs_out:
+                    downsampled_signal = resample(ecg_cleaned, int(len(ecg_cleaned) * fs_out / fs_in))
+                else:
+                    downsampled_signal = ecg_cleaned.copy()
+                    
+                normalized_signal = (downsampled_signal - np.mean(downsampled_signal)) / (np.std(downsampled_signal) + 1e-8)
+            except Exception as e:
+                logger.error(f"Sinyal yeniden örnekleme hatası: {e}")
+                normalized_signal = ecg_cleaned
             
-            _, rpeaks_info = nk.ecg_peaks(normalized_signal, sampling_rate=fs_out)
-            r_peak_indices = rpeaks_info.get('ECG_R_Peaks', [])
+            # Model için R-peak'leri yeniden örneklenmiş sinyalde bul
+            try:
+                _, rpeaks_info_ds = nk.ecg_peaks(normalized_signal, sampling_rate=fs_out)
+                r_peak_indices_ds = rpeaks_info_ds.get('ECG_R_Peaks', [])
+            except Exception as e:
+                logger.warning(f"Downsampled R-peak bulma hatası: {e}")
+                # Orijinal R-peak'leri ölçekle
+                if r_peaks and fs_in != fs_out:
+                    r_peak_indices_ds = [int(p * fs_out / fs_in) for p in r_peaks]
+                    r_peak_indices_ds = [p for p in r_peak_indices_ds if 0 <= p < len(normalized_signal)]
+                else:
+                    r_peak_indices_ds = r_peaks
             
-            beats = self.extract_beats(normalized_signal, r_peak_indices, window=187)
-            predictions = self.predict_beats(beats)
-            ai_summary = self.summarize_ai_findings(predictions)
+            # Adım 5: AI Tahminleri
+            predictions = []
+            ai_summary = {"arrhythmia_level": "Bilinmiyor", "risk_findings": ["Model analizi yapılamadı."]}
+            
+            try:
+                beats = self.extract_beats(normalized_signal, r_peak_indices_ds, window=187)
+                predictions = self.predict_beats(beats)
+                ai_summary = self.summarize_ai_findings(predictions)
+            except Exception as e:
+                logger.error(f"AI analizi hatası: {e}")
+            
+            # Adım 6: Sonucu oluştur
+            # R-peaks'i güvenli şekilde integer'a çevir
+            safe_r_peaks = []
+            if r_peaks:
+                for p in r_peaks:
+                    try:
+                        # NumPy array, scalar veya normal sayı olabilir
+                        if hasattr(p, 'item'):  # NumPy scalar
+                            safe_r_peaks.append(int(p.item()))
+                        elif hasattr(p, '__len__') and len(p) == 1:  # Tek elemanlı array
+                            safe_r_peaks.append(int(p[0]))
+                        else:  # Normal sayı
+                            safe_r_peaks.append(int(p))
+                    except (ValueError, TypeError, IndexError) as e:
+                        logger.warning(f"R-peak değeri çevrilemedi: {p}, hata: {e}")
+                        continue
             
             result = {
                 "success": True,
-                "display_signal": display_signal.tolist(),
-                "r_peaks": [int(p) for p in r_peak_indices],
+                "display_signal": ecg_cleaned.tolist(),
+                "r_peaks": safe_r_peaks,
                 "predictions": predictions,
                 "clinical_features": clinical_metrics,
                 "ai_summary": ai_summary,
             }
+            
             logger.info("EKG analizi başarıyla tamamlandı.")
             return result
+
         except Exception as e:
             logger.error(f"EKG analizi sırasında kritik hata: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+
 
 # ############################################################################
 # ##                           FLASK WEB API                                ##
@@ -263,66 +515,71 @@ try:
     processor = ECGProcessor(model_path="model.pth")
 except Exception as e:
     processor = None
-    logger.critical(f"Kritik Hata: EKG işleyicisi başlatılamadı: {e}")
+    logger.critical(f"Kritik Hata: {e}")
 
-# --- HASTA API ENDPOINT'LERİ ---
 @app.route('/api/patients', methods=['GET'])
 def get_patients():
     conn = get_db_connection()
-    patients_cursor = conn.execute('SELECT * FROM patients ORDER BY name ASC').fetchall()
+    p_cursor = conn.execute('SELECT * FROM patients ORDER BY name ASC').fetchall()
     conn.close()
-    # Veritabanı satırlarını Python sözlüklerine çevir
-    patients = [dict(row) for row in patients_cursor]
-    return jsonify(patients)
+    return jsonify([dict(row) for row in p_cursor])
 
 @app.route('/api/patients', methods=['POST'])
 def add_patient():
     data = request.get_json()
     conn = get_db_connection()
-    conn.execute('INSERT INTO patients (name, tc, age, gender, phone, medications, complaints) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                 (data['name'], data['tc'], data['age'], data['gender'], data['phone'], json.dumps(data.get('medications', [])), data.get('complaints', '')))
+    conn.execute(
+        'INSERT INTO patients (name, tc, age, gender, phone, medications, complaints) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (data['name'], data['tc'], data['age'], data['gender'], data['phone'], 
+         json.dumps(data.get('medications', [])), data.get('complaints', ''))
+    )
     conn.commit()
     conn.close()
-    return jsonify({"message": "Hasta başarıyla eklendi."}), 201
+    return jsonify({"message": "Hasta eklendi."}), 201
 
 @app.route('/api/patients/<int:id>', methods=['PUT'])
 def update_patient(id):
     data = request.get_json()
     conn = get_db_connection()
-    conn.execute('UPDATE patients SET name=?, tc=?, age=?, gender=?, phone=?, medications=?, complaints=? WHERE id=?',
-                 (data['name'], data['tc'], data['age'], data['gender'], data['phone'], json.dumps(data.get('medications', [])), data.get('complaints', ''), id))
+    conn.execute(
+        'UPDATE patients SET name=?, tc=?, age=?, gender=?, phone=?, medications=?, complaints=? WHERE id=?',
+        (data['name'], data['tc'], data['age'], data['gender'], data['phone'],
+         json.dumps(data.get('medications', [])), data.get('complaints', ''), id)
+    )
     conn.commit()
     conn.close()
-    return jsonify({"message": "Hasta bilgileri güncellendi."})
+    return jsonify({"message": "Hasta güncellendi."})
 
 @app.route('/api/patients/<int:id>', methods=['DELETE'])
 def delete_patient(id):
     conn = get_db_connection()
-    # İlişkili dosyaları da sil (ON DELETE CASCADE ile otomatikleşti)
     conn.execute('DELETE FROM patients WHERE id=?', (id,))
     conn.commit()
     conn.close()
-    return jsonify({"message": "Hasta ve tüm kayıtları silindi."})
+    return jsonify({"message": "Hasta silindi."})
 
-# --- EKG DOSYA API ENDPOINT'LERİ ---
 @app.route('/api/patients/<int:patient_id>/files', methods=['GET'])
 def get_patient_files(patient_id):
     conn = get_db_connection()
-    files_cursor = conn.execute('SELECT id, file_name, uploaded_at FROM ekg_files WHERE patient_id=? ORDER BY uploaded_at DESC', (patient_id,)).fetchall()
+    files_cursor = conn.execute(
+        'SELECT id, file_name, uploaded_at FROM ekg_files WHERE patient_id=? ORDER BY uploaded_at DESC',
+        (patient_id,)
+    ).fetchall()
     conn.close()
-    files = [dict(row) for row in files_cursor]
-    return jsonify(files)
+    return jsonify([dict(row) for row in files_cursor])
 
 @app.route('/api/patients/<int:patient_id>/files', methods=['POST'])
 def upload_file(patient_id):
     data = request.get_json()
     ekg_data_np = np.array(data['data'], dtype=np.float32)
     conn = get_db_connection()
-    conn.execute('INSERT INTO ekg_files (patient_id, file_name, uploaded_at, sampling_rate, ekg_data) VALUES (?, ?, ?, ?, ?)',
-                 (patient_id, data['name'], data['uploadedAt'], data.get('samplingRate', 1000), ekg_data_np.tobytes()))
+    conn.execute(
+        'INSERT INTO ekg_files (patient_id, file_name, uploaded_at, sampling_rate, ekg_data) VALUES (?, ?, ?, ?, ?)',
+        (patient_id, data['name'], data['uploadedAt'], data.get('samplingRate', 1000), ekg_data_np.tobytes())
+    )
     conn.commit()
     conn.close()
-    return jsonify({"message": "Dosya başarıyla yüklendi."}), 201
+    return jsonify({"message": "Dosya yüklendi."}), 201
 
 @app.route('/api/analyze/<int:file_id>', methods=['GET'])
 def analyze_file(file_id):
@@ -338,9 +595,10 @@ def analyze_file(file_id):
     
     ekg_data = np.frombuffer(file_record['ekg_data'], dtype=np.float32)
     result = processor.process_ecg_record(ekg_data, fs_in=file_record['sampling_rate'])
+    
     return jsonify(result)
 
 if __name__ == '__main__':
-    init_db()  # Sunucu başlamadan önce veritabanını kontrol et/oluştur
-    logger.info("Flask sunucusu http://12ז.0.0.1:5001 adresinde başlatılıyor...")
+    init_db()
+    logger.info("Flask sunucusu http://127.0.0.1:5001 adresinde başlatılıyor...")
     app.run(debug=True, port=5001)
