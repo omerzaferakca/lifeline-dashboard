@@ -10,8 +10,8 @@ function HomePage({ patients, onSelectPatient, onAddPatient, onEditPatient, onDe
     patient.tc.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSelectAndNavigate = (patientId) => {
-    onSelectPatient(patientId);
+  const handleSelectAndNavigate = (patient) => {
+    onSelectPatient(patient);
     navigate('/detaylar');
   };
 
@@ -21,13 +21,11 @@ function HomePage({ patients, onSelectPatient, onAddPatient, onEditPatient, onDe
         <h1>Hasta Yönetimi</h1>
         <p>Toplam {patients.length} hasta kaydı bulunmaktadır.</p>
       </div>
-
       <div className="patient-controls">
         <button className="btn btn-primary" onClick={onAddPatient}>
           + Yeni Hasta Ekle
         </button>
       </div>
-
       <input
         type="text"
         className="search-bar"
@@ -35,22 +33,20 @@ function HomePage({ patients, onSelectPatient, onAddPatient, onEditPatient, onDe
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
       />
-
       <div className="patient-list">
         {filteredPatients.map(patient => (
           <div key={patient.id} className="patient-list-item">
-            <div className="patient-list-info" onClick={() => handleSelectAndNavigate(patient.id)}>
+            <div className="patient-list-info" onClick={() => handleSelectAndNavigate(patient)}>
               <h3 className="patient-name">{patient.name}</h3>
-              <p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender === 'E' ? 'Erkek' : 'Kadın'}</p>
-              <p><strong>Genel Durum:</strong> {patient.diagnosis || 'Belirtilmemiş'}</p>
+              <p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender}</p>
             </div>
-            
             <div className="patient-list-actions">
               <button className="btn btn-primary btn-sm" onClick={() => onEditPatient(patient)}>Düzenle</button>
               <button className="btn btn-danger btn-sm" onClick={() => onDeletePatient(patient.id)}>Sil</button>
             </div>
           </div>
         ))}
+        {filteredPatients.length === 0 && <p style={{textAlign: 'center', marginTop: '2rem'}}>Hasta bulunamadı veya henüz hiç hasta eklenmedi.</p>}
       </div>
     </div>
   );
