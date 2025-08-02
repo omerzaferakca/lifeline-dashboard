@@ -247,7 +247,9 @@ class ECGProcessor:
             return None
 
     def _calculate_clinical_metrics(self, ecg_cleaned: np.ndarray, r_peaks: list, fs_in: int) -> Dict:
-        """Klinik metrikleri güvenli şekilde hesapla"""
+        """Klinik metrikleri güvenli ve doğru bir akışla hesaplar."""
+        
+        # 1. Varsayılan (boş) sonuçları oluştur
         clinical_metrics = {
             "heart_rate": None,
             "qrs_duration": None,
@@ -255,151 +257,62 @@ class ECGProcessor:
             "qt_interval": None
         }
         
-        if len(r_peaks) < 3:
-            logger.warning("Yeterli R-peak bulunamadı, klinik metrikler hesaplanamıyor")
-    def _manual_wave_detection(self, signal: np.ndarray, r_peaks: list, fs: int) -> Dict:
-        """Manuel dalga tespiti - basit yaklaşım"""
-        waves = {}
-        try:
-            # Basit yaklaşım: R-peak etrafında sabit mesafeler
-            window_ms = 200  # ms
-            window_samples = int(window_ms * fs / 1000)
-            
-            q_peaks, s_peaks, t_peaks = [], [], []
-            
-            for r_peak in r_peaks:
-                # Q wave (R'den önce)
-                q_start = max(0, r_peak - window_samples//4)
-                q_end = r_peak
-                if q_start < q_end:
-                    q_segment = signal[q_start:q_end]
-                    q_min_idx = np.argmin(q_segment)
-                    q_peaks.append(q_start + q_min_idx)
-                
-                # S wave (R'den sonra)
-                s_start = r_peak
-                s_end = min(len(signal), r_peak + window_samples//4)
-                if s_start < s_end:
-                    s_segment = signal[s_start:s_end]
-                    s_min_idx = np.argmin(s_segment)
-                    s_peaks.append(s_start + s_min_idx)
-                
-                # T wave (R'den sonra, daha uzak)
-                t_start = r_peak + window_samples//4
-                t_end = min(len(signal), r_peak + window_samples)
-                if t_start < t_end:
-                    t_segment = signal[t_start:t_end]
-                    t_max_idx = np.argmax(t_segment)
-                    t_peaks.append(t_start + t_max_idx)
-            
-            waves = {
-                'ECG_Q_Peaks': np.array(q_peaks) if q_peaks else None,
-                'ECG_S_Offsets': np.array(s_peaks) if s_peaks else None,
-                'ECG_T_Offsets': np.array(t_peaks) if t_peaks else None,
-                'ECG_P_Onsets': None,  # P wave tespiti daha karmaşık
-                'ECG_R_Onsets': np.array(r_peaks) if r_peaks else None,
-            }
-            
-            logger.debug("Manuel wave detection tamamlandı")
-            
-        except Exception as e:
-            logger.error(f"Manuel wave detection hatası: {e}")
-            waves = {}
-            
-        return waves
+        # 2. Yeterli R-peak yoksa, boş sonuçlarla hemen geri dön
+        if len(r_peaks) < 2:
+            logger.warning("Yeterli R-peak bulunamadı, klinik metrikler hesaplanamıyor.")
+            return clinical_metrics
 
+        # 3. Yeterli R-peak varsa, hesaplamalara başla
         try:
             # Kalp Hızı Hesaplama
-            logger.debug("Kalp hızı hesaplanıyor...")
             hr = nk.ecg_rate(r_peaks, sampling_rate=fs_in, desired_length=len(ecg_cleaned))
             hr_mean = np.nanmean(hr)
             if np.isfinite(hr_mean):
                 clinical_metrics["heart_rate"] = float(hr_mean)
-                logger.debug(f"Kalp hızı: {hr_mean}")
 
-            # Dalga Delineasyonu - ALTERNATİF YÖNTEM
-            logger.debug("ECG delineation başlıyor...")
+            # Dalga Tespiti (Delineation)
+            # Bu adım gürültülü sinyallerde hata verebilir, bu yüzden try-except içine alıyoruz.
             waves = {}
             try:
-                # İlk olarak 'dwt' metodunu dene
                 _, waves = nk.ecg_delineate(ecg_cleaned, r_peaks, sampling_rate=fs_in, method="dwt")
-                logger.debug(f"DWT metodu başarılı. Waves keys: {list(waves.keys())}")
-            except Exception as e1:
-                logger.warning(f"DWT metodu başarısız: {e1}")
-                try:
-                    # Alternatif olarak 'peak' metodunu dene
-                    _, waves = nk.ecg_delineate(ecg_cleaned, r_peaks, sampling_rate=fs_in, method="peak")
-                    logger.debug(f"Peak metodu başarılı. Waves keys: {list(waves.keys())}")
-                except Exception as e2:
-                    logger.warning(f"Peak metodu da başarısız: {e2}")
-                    try:
-                        # Son çare olarak manuel yöntem
-                        logger.debug("Manuel delineation deneniyor...")
-                        waves = self._manual_wave_detection(ecg_cleaned, r_peaks, fs_in)
-                    except Exception as e3:
-                        logger.error(f"Tüm delineation metodları başarısız: {e3}")
-                        return clinical_metrics
+            except Exception as e:
+                logger.warning(f"Neurokit Delineate başarısız oldu: {e}. Metrikler hesaplanamayabilir.")
+                # Delineate başarısız olsa bile, en azından kalp hızı hesaplanmış olur.
+                # Bu yüzden burada fonksiyondan çıkıyoruz.
+                return clinical_metrics
 
-            # QRS Süresi (S_Offset - Q_Peak) - DİKKATLİ KONTROL
-            logger.debug("QRS süresi hesaplanıyor...")
-            q_peaks = self._safe_wave_check(waves, "ECG_Q_Peaks")
-            s_offsets = self._safe_wave_check(waves, "ECG_S_Offsets")
+            # 4. Dalgalar başarıyla bulunduysa, metrikleri hesapla
             
-            logger.debug(f"Q_peaks: {q_peaks is not None}, S_offsets: {s_offsets is not None}")
-            
-            if q_peaks is not None and s_offsets is not None:
-                logger.debug(f"Q_peaks len: {len(q_peaks)}, S_offsets len: {len(s_offsets)}")
-                
-                # Uzunluk kontrolü
-                min_len = min(len(q_peaks), len(s_offsets))
-                if min_len > 0:
-                    try:
-                        qrs_durations = (s_offsets[:min_len] - q_peaks[:min_len]) / fs_in * 1000  # ms
-                        qrs_mean = np.nanmean(qrs_durations)
-                        logger.debug(f"QRS durations: {qrs_durations[:5]}...")  # İlk 5 değer
-                        if np.isfinite(qrs_mean) and qrs_mean > 0:
-                            clinical_metrics["qrs_duration"] = float(qrs_mean)
-                            logger.debug(f"QRS süresi: {qrs_mean}")
-                    except Exception as e:
-                        logger.error(f"QRS hesaplama hatası: {e}", exc_info=True)
+            # QRS Süresi (S_Offset - Q_Peak)
+            q_peaks = waves.get("ECG_Q_Peaks")
+            s_offsets = waves.get("ECG_S_Offsets")
+            if q_peaks is not None and s_offsets is not None and len(q_peaks) == len(s_offsets):
+                qrs_durations = (np.array(s_offsets) - np.array(q_peaks)) / fs_in * 1000  # ms
+                qrs_mean = np.nanmean(qrs_durations)
+                if np.isfinite(qrs_mean) and qrs_mean > 0:
+                    clinical_metrics["qrs_duration"] = float(qrs_mean)
 
-            # PR Aralığı (R_Onset - P_Onset) - DİKKATLİ KONTROL
-            logger.debug("PR aralığı hesaplanıyor...")
-            p_onsets = self._safe_wave_check(waves, "ECG_P_Onsets")
-            r_onsets = self._safe_wave_check(waves, "ECG_R_Onsets")
-            
-            if p_onsets is not None and r_onsets is not None:
-                min_len = min(len(p_onsets), len(r_onsets))
-                if min_len > 0:
-                    try:
-                        pr_intervals = (r_onsets[:min_len] - p_onsets[:min_len]) / fs_in * 1000  # ms
-                        pr_mean = np.nanmean(pr_intervals)
-                        if np.isfinite(pr_mean) and pr_mean > 0:
-                            clinical_metrics["pr_interval"] = float(pr_mean)
-                            logger.debug(f"PR aralığı: {pr_mean}")
-                    except Exception as e:
-                        logger.error(f"PR hesaplama hatası: {e}", exc_info=True)
+            # PR Aralığı (R_Onset - P_Onset)
+            p_onsets = waves.get("ECG_P_Onsets")
+            r_onsets = waves.get("ECG_R_Onsets")
+            if p_onsets is not None and r_onsets is not None and len(p_onsets) == len(r_onsets):
+                pr_intervals = (np.array(r_onsets) - np.array(p_onsets)) / fs_in * 1000  # ms
+                pr_mean = np.nanmean(pr_intervals)
+                if np.isfinite(pr_mean) and pr_mean > 0:
+                    clinical_metrics["pr_interval"] = float(pr_mean)
 
-            # QT Aralığı (T_Offset - Q_Peak) - DİKKATLİ KONTROL
-            logger.debug("QT aralığı hesaplanıyor...")
-            t_offsets = self._safe_wave_check(waves, "ECG_T_Offsets")
-            
-            if q_peaks is not None and t_offsets is not None:
-                min_len = min(len(q_peaks), len(t_offsets))
-                if min_len > 0:
-                    try:
-                        qt_intervals = (t_offsets[:min_len] - q_peaks[:min_len]) / fs_in * 1000  # ms
-                        qt_mean = np.nanmean(qt_intervals)
-                        if np.isfinite(qt_mean) and qt_mean > 0:
-                            clinical_metrics["qt_interval"] = float(qt_mean)
-                            logger.debug(f"QT aralığı: {qt_mean}")
-                    except Exception as e:
-                        logger.error(f"QT hesaplama hatası: {e}", exc_info=True)
+            # QT Aralığı (T_Offset - Q_Peak)
+            t_offsets = waves.get("ECG_T_Offsets")
+            if q_peaks is not None and t_offsets is not None and len(q_peaks) == len(t_offsets):
+                qt_intervals = (np.array(t_offsets) - np.array(q_peaks)) / fs_in * 1000  # ms
+                qt_mean = np.nanmean(qt_intervals)
+                if np.isfinite(qt_mean) and qt_mean > 0:
+                    clinical_metrics["qt_interval"] = float(qt_mean)
 
         except Exception as e:
-            logger.error(f"Klinik metrik hesaplamasında genel hata: {e}", exc_info=True)
+            logger.error(f"Klinik metrik hesaplamasında genel bir hata oluştu: {e}", exc_info=True)
 
-        logger.debug(f"Final clinical metrics: {clinical_metrics}")
+        logger.info(f"Hesaplanan Nihai Metrikler: {clinical_metrics}")
         return clinical_metrics
 
     def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 1000, fs_out: int = 125) -> Dict:
