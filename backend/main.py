@@ -410,10 +410,10 @@ class ECGProcessor:
         return predictions
     
     def calculate_advanced_clinical_metrics(self, signal: np.ndarray, r_peaks: List[int], fs: int) -> Dict:
-        """Gelişmiş klinik ECG metrikleri hesapla (HRV dahil)."""
+        """Gelişmiş klinik ECG metrikleri hesapla (HRV dahil) - DÜZELTME"""
         metrics = {
             "heart_rate_bpm": None,
-            "heart_rate_variability": {},  # HRV metrikleri
+            "heart_rate_variability": {},
             "qrs_duration_ms": None,
             "pr_interval_ms": None,
             "qt_interval_ms": None,
@@ -428,55 +428,95 @@ class ECGProcessor:
             rr_intervals = np.diff(r_peaks) / fs  # saniye cinsinden
             rr_intervals_ms = rr_intervals * 1000  # milisaniye cinsinden
             
-            # Kalp hızı hesaplama
-            if len(rr_intervals) > 0:
-                hr = 60.0 / np.mean(rr_intervals)
-                metrics["heart_rate_bpm"] = float(hr)
-                metrics["rr_intervals_ms"] = rr_intervals_ms.tolist()
+            # FİZYOLOJİK SINIR KONTROLÜ - Anormal RR intervallerini filtrele
+            # Normal RR: 300-2000 ms (30-200 BPM arası)
+            valid_rr_mask = (rr_intervals_ms >= 300) & (rr_intervals_ms <= 2000)
+            rr_intervals_ms_filtered = rr_intervals_ms[valid_rr_mask]
+            
+            if len(rr_intervals_ms_filtered) == 0:
+                logger.warning("Hiçbir geçerli RR interval bulunamadı")
+                return metrics
+            
+            # Kalp hızı hesaplama (filtrelenmiş RR'lar ile)
+            hr = 60.0 / np.mean(rr_intervals_ms_filtered / 1000)  # BPM
+            metrics["heart_rate_bpm"] = float(hr)
+            metrics["rr_intervals_ms"] = rr_intervals_ms_filtered.tolist()
+            
+            # ===== DÜZELTME: HRV ANALİZİ =====
+            if len(rr_intervals_ms_filtered) > 1:
+                hrv_metrics = {}
                 
-                # ===== HRV ANALİZİ =====
-                if len(rr_intervals_ms) > 1:
-                    hrv_metrics = {}
-                    
-                    # Time-domain HRV metrics
-                    # RMSSD (Root Mean Square of Successive Differences)
-                    rr_diff = np.diff(rr_intervals_ms)
-                    rmssd = np.sqrt(np.mean(rr_diff ** 2))
+                # Time-domain HRV metrics
+                # RMSSD (Root Mean Square of Successive Differences)
+                rr_diff = np.diff(rr_intervals_ms_filtered)
+                
+                # RMSSD aşırı yüksek çıkmasını önlemek için outlier kontrolü
+                rr_diff_filtered = rr_diff[np.abs(rr_diff) <= 500]  # 500ms'den büyük farkları filtrele
+                
+                if len(rr_diff_filtered) > 0:
+                    rmssd = np.sqrt(np.mean(rr_diff_filtered ** 2))
                     hrv_metrics["rmssd_ms"] = float(rmssd)
-                    
-                    # SDNN (Standard Deviation of NN intervals)
-                    sdnn = np.std(rr_intervals_ms)
-                    hrv_metrics["sdnn_ms"] = float(sdnn)
-                    
-                    # pNN50 (Percentage of successive RR intervals that differ by more than 50ms)
+                else:
+                    hrv_metrics["rmssd_ms"] = 0.0
+                
+                # SDNN (Standard Deviation of NN intervals)
+                sdnn = np.std(rr_intervals_ms_filtered)
+                hrv_metrics["sdnn_ms"] = float(sdnn)
+                
+                # pNN50 (Percentage of successive RR intervals that differ by more than 50ms)
+                if len(rr_diff) > 0:
                     nn50 = np.sum(np.abs(rr_diff) > 50)
                     pnn50 = (nn50 / len(rr_diff)) * 100
                     hrv_metrics["pnn50_percent"] = float(pnn50)
-                    
-                    # SDSD (Standard Deviation of Successive Differences)
+                else:
+                    hrv_metrics["pnn50_percent"] = 0.0
+                
+                # SDSD (Standard Deviation of Successive Differences)
+                if len(rr_diff) > 0:
                     sdsd = np.std(rr_diff)
                     hrv_metrics["sdsd_ms"] = float(sdsd)
-                    
-                    # Triangular Index (approximate)
-                    hist, _ = np.histogram(rr_intervals_ms, bins=50)
-                    tri_index = len(rr_intervals_ms) / np.max(hist) if np.max(hist) > 0 else 0
+                else:
+                    hrv_metrics["sdsd_ms"] = 0.0
+                
+                # Triangular Index
+                if len(rr_intervals_ms_filtered) > 5:
+                    hist, _ = np.histogram(rr_intervals_ms_filtered, bins=min(20, len(rr_intervals_ms_filtered)//2))
+                    max_hist = np.max(hist)
+                    tri_index = len(rr_intervals_ms_filtered) / max_hist if max_hist > 0 else 0
                     hrv_metrics["triangular_index"] = float(tri_index)
-                    
-                    # Frequency-domain HRV (basit yaklaşım)
-                    if len(rr_intervals_ms) > 10:
-                        try:
-                            # FFT tabanlı güç spektral yoğunluğu
-                            freqs = np.fft.fftfreq(len(rr_intervals_ms), d=np.mean(rr_intervals))
-                            power = np.abs(np.fft.fft(rr_intervals_ms - np.mean(rr_intervals_ms))) ** 2
+                else:
+                    hrv_metrics["triangular_index"] = 0.0
+                
+                # Frequency-domain HRV (geliştirilmiş)
+                if len(rr_intervals_ms_filtered) > 10:
+                    try:
+                        # RR serisi için interpolasyon (4Hz sampling)
+                        time_stamps = np.cumsum(rr_intervals_ms_filtered / 1000)
+                        interp_time = np.arange(0, time_stamps[-1], 0.25)  # 4Hz
+                        
+                        if len(time_stamps) > 1 and len(interp_time) > 1:
+                            rr_interp = np.interp(interp_time, time_stamps[:-1], rr_intervals_ms_filtered[:-1])
                             
-                            # VLF (0.003-0.04 Hz), LF (0.04-0.15 Hz), HF (0.15-0.4 Hz)
-                            vlf_mask = (freqs >= 0.003) & (freqs < 0.04)
-                            lf_mask = (freqs >= 0.04) & (freqs < 0.15)
-                            hf_mask = (freqs >= 0.15) & (freqs < 0.4)
+                            # Detrend
+                            rr_detrend = rr_interp - np.mean(rr_interp)
                             
-                            vlf_power = np.sum(power[vlf_mask]) if np.any(vlf_mask) else 0
-                            lf_power = np.sum(power[lf_mask]) if np.any(lf_mask) else 0
-                            hf_power = np.sum(power[hf_mask]) if np.any(hf_mask) else 0
+                            # FFT
+                            freqs = np.fft.fftfreq(len(rr_detrend), d=0.25)
+                            power = np.abs(np.fft.fft(rr_detrend)) ** 2
+                            
+                            # Pozitif frekanslar
+                            pos_mask = freqs > 0
+                            freqs_pos = freqs[pos_mask]
+                            power_pos = power[pos_mask]
+                            
+                            # Frekans bantları
+                            vlf_mask = (freqs_pos >= 0.0033) & (freqs_pos < 0.04)
+                            lf_mask = (freqs_pos >= 0.04) & (freqs_pos < 0.15)
+                            hf_mask = (freqs_pos >= 0.15) & (freqs_pos < 0.4)
+                            
+                            vlf_power = np.sum(power_pos[vlf_mask]) if np.any(vlf_mask) else 0
+                            lf_power = np.sum(power_pos[lf_mask]) if np.any(lf_mask) else 0
+                            hf_power = np.sum(power_pos[hf_mask]) if np.any(hf_mask) else 0
                             
                             total_power = vlf_power + lf_power + hf_power
                             
@@ -486,44 +526,79 @@ class ECGProcessor:
                                 hrv_metrics["hf_power"] = float(hf_power)
                                 hrv_metrics["lf_hf_ratio"] = float(lf_power / hf_power) if hf_power > 0 else 0
                                 hrv_metrics["total_power"] = float(total_power)
-                        
-                        except Exception as e:
-                            logger.warning(f"Frequency-domain HRV calculation failed: {e}")
                     
-                    metrics["heart_rate_variability"] = hrv_metrics
+                    except Exception as e:
+                        logger.warning(f"Frequency-domain HRV calculation failed: {e}")
+                
+                metrics["heart_rate_variability"] = hrv_metrics
             
-            # Wave delineation for intervals
+            # ===== DÜZELTME: WAVE DELINEATION =====
             try:
                 _, waves = nk.ecg_delineate(signal, r_peaks, sampling_rate=fs, method="dwt")
                 
-                # QRS duration
+                # QRS duration (Q'dan S'ye)
                 q_peaks = waves.get('ECG_Q_Peaks')
                 s_peaks = waves.get('ECG_S_Peaks')
-                if q_peaks is not None and s_peaks is not None:
-                    q_peaks = np.array(q_peaks)[~np.isnan(q_peaks)]
-                    s_peaks = np.array(s_peaks)[~np.isnan(s_peaks)]
-                    if len(q_peaks) > 0 and len(s_peaks) > 0:
-                        qrs_durations = (s_peaks[:min(len(q_peaks), len(s_peaks))] - 
-                                       q_peaks[:min(len(q_peaks), len(s_peaks))]) / fs * 1000
-                        metrics["qrs_duration_ms"] = float(np.mean(qrs_durations))
                 
-                # PR interval
+                if q_peaks is not None and s_peaks is not None:
+                    q_peaks_clean = np.array([x for x in q_peaks if not np.isnan(x)], dtype=int)
+                    s_peaks_clean = np.array([x for x in s_peaks if not np.isnan(x)], dtype=int)
+                    
+                    if len(q_peaks_clean) > 0 and len(s_peaks_clean) > 0:
+                        # Eşleştirilebilir Q-S çiftlerini bul
+                        min_pairs = min(len(q_peaks_clean), len(s_peaks_clean))
+                        qrs_durations = []
+                        
+                        for i in range(min_pairs):
+                            if q_peaks_clean[i] < s_peaks_clean[i]:  # Q, S'den önce olmalı
+                                duration_ms = (s_peaks_clean[i] - q_peaks_clean[i]) / fs * 1000
+                                if 40 <= duration_ms <= 200:  # Fizyolojik sınırlar
+                                    qrs_durations.append(duration_ms)
+                        
+                        if qrs_durations:
+                            metrics["qrs_duration_ms"] = float(np.mean(qrs_durations))
+                
+                # PR interval (P başlangıcından R'ye)
                 p_onsets = waves.get('ECG_P_Onsets')
                 if p_onsets is not None and len(r_peaks) > 0:
-                    p_onsets = np.array(p_onsets)[~np.isnan(p_onsets)]
-                    if len(p_onsets) > 0:
-                        pr_intervals = (np.array(r_peaks[:len(p_onsets)]) - p_onsets) / fs * 1000
-                        metrics["pr_interval_ms"] = float(np.mean(pr_intervals[pr_intervals > 0]))
+                    p_onsets_clean = np.array([x for x in p_onsets if not np.isnan(x)], dtype=int)
+                    
+                    if len(p_onsets_clean) > 0:
+                        pr_intervals = []
+                        
+                        for p_onset in p_onsets_clean:
+                            # En yakın R peak'i bul (P'den sonra gelen)
+                            following_r = [r for r in r_peaks if r > p_onset]
+                            if following_r:
+                                closest_r = min(following_r)
+                                pr_ms = (closest_r - p_onset) / fs * 1000
+                                if 80 <= pr_ms <= 300:  # Fizyolojik sınırlar
+                                    pr_intervals.append(pr_ms)
+                        
+                        if pr_intervals:
+                            metrics["pr_interval_ms"] = float(np.mean(pr_intervals))
                 
-                # QT interval
+                # ===== DÜZELTME: QT interval (Q'dan T sonuna) =====
                 t_offsets = waves.get('ECG_T_Offsets')
                 if q_peaks is not None and t_offsets is not None:
-                    t_offsets = np.array(t_offsets)[~np.isnan(t_offsets)]
-                    if len(t_offsets) > 0 and len(q_peaks) > 0:
-                        qt_intervals = (t_offsets[:min(len(q_peaks), len(t_offsets))] - 
-                                      q_peaks[:min(len(q_peaks), len(t_offsets))]) / fs * 1000
-                        metrics["qt_interval_ms"] = float(np.mean(qt_intervals[qt_intervals > 0]))
+                    q_peaks_clean = np.array([x for x in q_peaks if not np.isnan(x)], dtype=int)
+                    t_offsets_clean = np.array([x for x in t_offsets if not np.isnan(x)], dtype=int)
+                    
+                    if len(q_peaks_clean) > 0 and len(t_offsets_clean) > 0:
+                        qt_intervals = []
                         
+                        for q_peak in q_peaks_clean:
+                            # En yakın T offset'i bul (Q'dan sonra gelen)
+                            following_t = [t for t in t_offsets_clean if t > q_peak]
+                            if following_t:
+                                closest_t = min(following_t)
+                                qt_ms = (closest_t - q_peak) / fs * 1000
+                                if 200 <= qt_ms <= 600:  # Fizyolojik sınırlar
+                                    qt_intervals.append(qt_ms)
+                        
+                        if qt_intervals:
+                            metrics["qt_interval_ms"] = float(np.mean(qt_intervals))
+                            
             except Exception as e:
                 logger.warning(f"Wave delineation failed: {e}")
         
@@ -531,9 +606,10 @@ class ECGProcessor:
             logger.error(f"Clinical metrics calculation error: {e}")
         
         return metrics
-    
+
+
     def detect_anomalies(self, predictions: List[Dict], clinical_metrics: Dict) -> Dict:
-        """Gelişmiş anomali ve aritmi tespiti."""
+        """Gelişmiş anomali ve aritmi tespiti - DÜZELTME"""
         anomalies = {
             "arrhythmias": [],
             "morphology_abnormalities": [],
@@ -555,7 +631,30 @@ class ECGProcessor:
             
             beat_percentages = {k: (v/total_beats)*100 for k, v in beat_counts.items()}
             
-            # Ventriküler aritmi tespiti
+            # ===== KALP HIZI ANOMALİLERİ =====
+            hr = clinical_metrics.get("heart_rate_bpm")
+            if hr:
+                if hr > 120:
+                    anomalies["arrhythmias"].append({
+                        "type": "Taşikardi",
+                        "severity": "Yüksek" if hr > 150 else "Orta",
+                        "description": f"Kalp hızı: {hr:.0f} bpm (normal: 60-100 bpm)",
+                        "recommendation": "Hızla kardiyoloji değerlendirmesi gerekli"
+                    })
+                    if hr > 150 and anomalies["severity"] != "Kritik":
+                        anomalies["severity"] = "Yüksek"
+                elif hr < 50:
+                    severity = "Yüksek" if hr < 40 else "Orta"
+                    anomalies["arrhythmias"].append({
+                        "type": "Bradikardi",
+                        "severity": severity,
+                        "description": f"Kalp hızı: {hr:.0f} bpm (normal: 60-100 bpm)",
+                        "recommendation": "Kardiyoloji konsültasyonu önerilir"
+                    })
+                    if severity == "Yüksek" and anomalies["severity"] != "Kritik":
+                        anomalies["severity"] = "Yüksek"
+            
+            # ===== VENTRİKÜLER ARİTMİ TESPİTİ =====
             v_count = beat_counts.get("Ventricular (V)", 0)
             v_percentage = beat_percentages.get("Ventricular (V)", 0)
             
@@ -587,7 +686,93 @@ class ECGProcessor:
                     if anomalies["severity"] == "Normal":
                         anomalies["severity"] = "Orta"
             
-            # Supraventriküler aritmi tespiti
+            # ===== QRS GENİŞLİK ANALİZİ =====
+            qrs = clinical_metrics.get("qrs_duration_ms")
+            if qrs and qrs > 120:
+                severity = "Yüksek" if qrs > 140 else "Orta"
+                anomalies["conduction_abnormalities"].append({
+                    "type": "Geniş QRS Kompleksi",
+                    "severity": severity,
+                    "description": f"QRS süresi: {qrs:.0f} ms (normal: <120 ms)",
+                    "recommendation": "Dal bloğu/ventriküler ileti bozukluğu değerlendirmesi"
+                })
+                if severity == "Yüksek" and anomalies["severity"] not in ["Kritik", "Yüksek"]:
+                    anomalies["severity"] = "Yüksek"
+            
+            # ===== DÜZELTME: HRV ANALİZİ =====
+            hrv = clinical_metrics.get("heart_rate_variability", {})
+            rmssd = hrv.get("rmssd_ms")
+            if rmssd is not None:
+                if rmssd < 15:  # Düşük HRV
+                    anomalies["arrhythmias"].append({
+                        "type": "Düşük Kalp Hızı Variabilitesi",
+                        "severity": "Orta",
+                        "description": f"RMSSD: {rmssd:.1f} ms (normal: 20-50 ms)",
+                        "recommendation": "Otonom sinir sistemi değerlendirmesi"
+                    })
+                    if anomalies["severity"] == "Normal":
+                        anomalies["severity"] = "Orta"
+                elif rmssd > 80:  # Çok yüksek HRV (önceki 100'den düşürüldü)
+                    anomalies["arrhythmias"].append({
+                        "type": "Anormal Yüksek HRV",
+                        "severity": "Orta",
+                        "description": f"RMSSD: {rmssd:.1f} ms (normal: 20-50 ms)",
+                        "recommendation": "Aritmi taraması önerilir"
+                    })
+                    if anomalies["severity"] == "Normal":
+                        anomalies["severity"] = "Orta"
+            
+            # ===== PR INTERVAL ANALİZİ =====
+            pr = clinical_metrics.get("pr_interval_ms")
+            if pr:
+                if pr > 200:
+                    anomalies["conduction_abnormalities"].append({
+                        "type": "1. Derece AV Blok",
+                        "severity": "Orta",
+                        "description": f"PR interval: {pr:.0f} ms (normal: 120-200 ms)",
+                        "recommendation": "İleti sistemi değerlendirmesi"
+                    })
+                    if anomalies["severity"] == "Normal":
+                        anomalies["severity"] = "Orta"
+                elif pr < 120:
+                    anomalies["conduction_abnormalities"].append({
+                        "type": "Kısa PR Interval",
+                        "severity": "Orta",
+                        "description": f"PR interval: {pr:.0f} ms (normal: 120-200 ms)",
+                        "recommendation": "Pre-eksitasyon sendromu değerlendirmesi"
+                    })
+                    if anomalies["severity"] == "Normal":
+                        anomalies["severity"] = "Orta"
+            
+            # ===== DÜZELTME: QT INTERVAL ve QTc ANALİZİ =====
+            qt = clinical_metrics.get("qt_interval_ms")
+            if qt and hr:
+                # Düzeltilmiş QTc hesaplama (Bazett formülü)
+                rr_seconds = 60.0 / hr  # RR interval in seconds
+                qtc = qt / np.sqrt(rr_seconds)  # Corrected QT
+                
+                # QTc normal değerleri: Erkek <430ms, Kadın <450ms (genel olarak <450ms)
+                if qtc > 450:  # Uzun QT
+                    severity = "Yüksek" if qtc > 500 else "Orta"
+                    anomalies["conduction_abnormalities"].append({
+                        "type": "Uzun QT Sendromu",
+                        "severity": severity,
+                        "description": f"QTc: {qtc:.0f} ms (normal: <450 ms), QT: {qt:.0f} ms",
+                        "recommendation": "Kardiyoloji konsültasyonu ve ilaç gözden geçirmesi"
+                    })
+                    if severity == "Yüksek" and anomalies["severity"] != "Kritik":
+                        anomalies["severity"] = "Yüksek"
+                elif qt < 350:  # Kısa QT
+                    anomalies["conduction_abnormalities"].append({
+                        "type": "Kısa QT Sendromu",
+                        "severity": "Orta",
+                        "description": f"QTc: {qtc:.0f} ms (normal: >350 ms), QT: {qt:.0f} ms",
+                        "recommendation": "Genetik kardiyomyopati değerlendirmesi"
+                    })
+                    if anomalies["severity"] == "Normal":
+                        anomalies["severity"] = "Orta"
+            
+            # ===== SUPRAVENTRİKÜLER ARİTMİ TESPİTİ =====
             s_count = beat_counts.get("Supraventricular (S)", 0)
             s_percentage = beat_percentages.get("Supraventricular (S)", 0)
             
@@ -601,7 +786,7 @@ class ECGProcessor:
                 if anomalies["severity"] == "Normal":
                     anomalies["severity"] = "Orta"
             
-            # Fusion beat analizi
+            # ===== FUSION BEAT ANALİZİ =====
             f_count = beat_counts.get("Fusion (F)", 0)
             if f_count > 2:
                 anomalies["morphology_abnormalities"].append({
@@ -610,101 +795,8 @@ class ECGProcessor:
                     "description": f"{f_count} fusion beat tespit edildi",
                     "recommendation": "İleti sistem değerlendirmesi önerilir"
                 })
-            
-            # Klinik metrik anomalileri
-            hr = clinical_metrics.get("heart_rate_bpm")
-            if hr:
-                if hr > 120:
-                    anomalies["arrhythmias"].append({
-                        "type": "Taşikardi",
-                        "severity": "Yüksek" if hr > 150 else "Orta",
-                        "description": f"Kalp hızı: {hr:.0f} bpm",
-                        "recommendation": "Hızla kardiyoloji değerlendirmesi gerekli"
-                    })
-                    if hr > 150 and anomalies["severity"] != "Kritik":
-                        anomalies["severity"] = "Yüksek"
-                elif hr < 45:
-                    anomalies["arrhythmias"].append({
-                        "type": "Ciddi Bradikardi",
-                        "severity": "Yüksek",
-                        "description": f"Kalp hızı: {hr:.0f} bpm",
-                        "recommendation": "Pacemaker değerlendirmesi gerekebilir"
-                    })
-                    if anomalies["severity"] != "Kritik":
-                        anomalies["severity"] = "Yüksek"
-                elif hr < 60:
-                    anomalies["arrhythmias"].append({
-                        "type": "Bradikardi",
-                        "severity": "Orta",
-                        "description": f"Kalp hızı: {hr:.0f} bpm",
-                        "recommendation": "Klinik korelasyon ve followup önerilir"
-                    })
-            
-            # QRS genişlik analizi
-            qrs = clinical_metrics.get("qrs_duration_ms")
-            if qrs and qrs > 120:
-                severity = "Yüksek" if qrs > 140 else "Orta"
-                anomalies["conduction_abnormalities"].append({
-                    "type": "Geniş QRS Kompleksi",
-                    "severity": severity,
-                    "description": f"QRS süresi: {qrs:.0f} ms",
-                    "recommendation": "Dal bloğu/ventriküler ileti bozukluğu değerlendirmesi"
-                })
-                if severity == "Yüksek" and anomalies["severity"] not in ["Kritik", "Yüksek"]:
-                    anomalies["severity"] = "Yüksek"
-            
-            # HRV analizi (ANS değerlendirmesi)
-            hrv = clinical_metrics.get("heart_rate_variability", {})
-            rmssd = hrv.get("rmssd_ms")
-            if rmssd is not None:
-                if rmssd < 15:  # Düşük HRV
-                    anomalies["arrhythmias"].append({
-                        "type": "Düşük Kalp Hızı Variabilitesi",
-                        "severity": "Orta",
-                        "description": f"RMSSD: {rmssd:.1f} ms (normal >20 ms)",
-                        "recommendation": "Otonom sinir sistemi değerlendirmesi"
-                    })
-                elif rmssd > 100:  # Çok yüksek HRV
-                    anomalies["arrhythmias"].append({
-                        "type": "Anormal Yüksek HRV",
-                        "severity": "Orta",
-                        "description": f"RMSSD: {rmssd:.1f} ms",
-                        "recommendation": "Aritmi taraması önerilir"
-                    })
-            
-            # PR interval analizi
-            pr = clinical_metrics.get("pr_interval_ms")
-            if pr:
-                if pr > 200:
-                    anomalies["conduction_abnormalities"].append({
-                        "type": "1. Derece AV Blok",
-                        "severity": "Orta",
-                        "description": f"PR interval: {pr:.0f} ms",
-                        "recommendation": "İleti sistemi değerlendirmesi"
-                    })
-                elif pr < 120:
-                    anomalies["conduction_abnormalities"].append({
-                        "type": "Kısa PR Interval",
-                        "severity": "Orta",
-                        "description": f"PR interval: {pr:.0f} ms",
-                        "recommendation": "Pre-eksitasyon sendromu değerlendirmesi"
-                    })
-            
-            # QT interval analizi
-            qt = clinical_metrics.get("qt_interval_ms")
-            if qt and hr:
-                # QTc hesaplama (Bazett formülü)
-                qtc = qt / np.sqrt((60/hr) / 60)
-                if qtc > 450:  # Uzun QT
-                    severity = "Yüksek" if qtc > 500 else "Orta"
-                    anomalies["conduction_abnormalities"].append({
-                        "type": "Uzun QT Sendromu",
-                        "severity": severity,
-                        "description": f"QTc: {qtc:.0f} ms",
-                        "recommendation": "Kardiyoloji konsültasyonu ve ilaç gözden geçirmesi"
-                    })
-                    if severity == "Yüksek" and anomalies["severity"] != "Kritik":
-                        anomalies["severity"] = "Yüksek"
+                if anomalies["severity"] == "Normal":
+                    anomalies["severity"] = "Orta"
         
         except Exception as e:
             logger.error(f"Anomaly detection error: {e}")
