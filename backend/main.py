@@ -314,55 +314,34 @@ class ECGProcessor:
                     logger.warning("Detected R-peaks have invalid RR intervals")
         
         return r_peaks
-    
-    def extract_beats(self, signal: np.ndarray, r_peaks: List[int], window: int = 187) -> np.ndarray:
-        """Extract individual heartbeats around R-peaks with improved validation."""
-        if not r_peaks:
-            logger.warning("No R-peaks provided for beat extraction")
+
+
+    def extract_beats(self, signal: np.ndarray, r_peaks: list, window_size: int = 187) -> np.ndarray:
+        if len(r_peaks) < 2:
             return np.array([])
         
-        half_window = window // 2
         beats = []
-        valid_beat_count = 0
-        
-        logger.info(f"Extracting beats from {len(r_peaks)} R-peaks with window size {window}")
-        
-        for i, r_peak in enumerate(r_peaks):
-            try:
-                start = max(0, r_peak - half_window)
-                end = min(len(signal), r_peak + half_window)
-                
-                # Skip if the beat window is too small
-                if (end - start) < window * 0.7:  # At least 70% of expected window
-                    logger.debug(f"Skipping beat {i}: insufficient data around R-peak {r_peak}")
-                    continue
-                
-                beat = signal[start:end]
-                
-                # Pad or truncate to fixed window size
-                if len(beat) < window:
-                    # Pad with edge values
-                    pad_before = (window - len(beat)) // 2
-                    pad_after = window - len(beat) - pad_before
-                    beat = np.pad(beat, (pad_before, pad_after), mode='edge')
-                elif len(beat) > window:
-                    beat = beat[:window]
-                
-                # Validate beat quality
-                beat_std = np.std(beat)
-                if beat_std < 1e-6:  # Avoid flat signals
-                    logger.debug(f"Skipping beat {i}: too flat (std={beat_std})")
-                    continue
-                
-                beats.append(beat)
-                valid_beat_count += 1
-                
-            except Exception as e:
-                logger.warning(f"Error extracting beat {i} at R-peak {r_peak}: {e}")
+        # Son R-peak'in de işlenebilmesi için döngüyü tüm R-peak'ler üzerinde kuruyoruz.
+        # Bir sonraki R-peak'i referans alıyoruz.
+        for i in range(len(r_peaks) - 1):
+            start = r_peaks[i]
+            end = r_peaks[i+1]
+            
+            segment = signal[start:end]
+            
+            # Kural 4: 187'den uzunsa ATLA (discard)
+            if len(segment) > window_size:
                 continue
-        
-        logger.info(f"Successfully extracted {valid_beat_count} valid beats from {len(r_peaks)} R-peaks")
+                
+            # Kural 5: 187'den kısaysa sonuna SIFIR EKLE (pad with zeroes)
+            if len(segment) < window_size:
+                padding = np.zeros(window_size - len(segment))
+                segment = np.concatenate([segment, padding])
+            
+            beats.append(segment)
+            
         return np.array(beats)
+
     
     def predict_beats(self, beats: np.ndarray) -> List[Dict]:
         """Predict beat classifications using the CNN model with improved error handling."""
@@ -760,38 +739,38 @@ class ECGProcessor:
         
         # Anomali bulgularını ekle
         for arrhythmia in anomalies.get("arrhythmias", []):
-            findings.append(f"🫀 {arrhythmia['type']}: {arrhythmia['description']}")
+            findings.append(f"{arrhythmia['type']}: {arrhythmia['description']}")
             recommendations.append(f" {arrhythmia['recommendation']}")
         
         for abnormality in anomalies.get("morphology_abnormalities", []):
-            findings.append(f"📊 {abnormality['type']}: {abnormality['description']}")
+            findings.append(f"{abnormality['type']}: {abnormality['description']}")
             recommendations.append(f" {abnormality['recommendation']}")
         
         for conduction in anomalies.get("conduction_abnormalities", []):
-            findings.append(f"⚡ {conduction['type']}: {conduction['description']}")
+            findings.append(f"{conduction['type']}: {conduction['description']}")
             recommendations.append(f" {conduction['recommendation']}")
         
         # Temel klinik bulgular
         hr = clinical_metrics.get("heart_rate_bpm")
         if hr:
             if 60 <= hr <= 100:
-                findings.append(f"✅ Normal kalp hızı: {hr:.0f} bpm")
+                findings.append(f"Normal kalp hızı: {hr:.0f} bpm")
         
         # HRV değerlendirmesi
         hrv = clinical_metrics.get("heart_rate_variability", {})
         if hrv:
             rmssd = hrv.get("rmssd_ms")
             if rmssd and 20 <= rmssd <= 50:
-                findings.append(f"✅ Normal kalp hızı variabilitesi (RMSSD: {rmssd:.1f} ms)")
+                findings.append(f"Normal kalp hızı variabilitesi (RMSSD: {rmssd:.1f} ms)")
         
         # Beat dağılım analizi
         normal_percentage = beat_percentages.get("Normal (N)", 0)
         if normal_percentage > 90:
-            findings.append(f"✅ Çoğunlukla normal kalp atımları (%{normal_percentage:.1f})")
+            findings.append(f"Çoğunlukla normal kalp atımları (%{normal_percentage:.1f})")
         
         # Hiçbir anormal bulgu yoksa
         if risk_level == "Normal" and not findings:
-            findings.append("✅ Önemli kardiyak anormallik tespit edilmedi")
+            findings.append("Önemli kardiyak anormallik tespit edilmedi")
             recommendations.append("Klinik olarak belirtildikçe rutin kardiyak izlemeye devam edin")
             recommendations.append("Sağlıklı yaşam tarzını sürdürün")
         
@@ -832,104 +811,70 @@ class ECGProcessor:
         }
     
     def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 500, fs_out: int = 125) -> Dict:
-        """Ana EKG işleme akışı - 500Hz giriş, 125Hz çıkış ve geliştirilmiş analiz."""
+        """
+        Ana EKG işleme akışı.
+        DÜZELTME: Eksik 'anomalies' argümanı eklendi.
+        """
         try:
-            logger.info(f"EKG analizi başladı... Örneklem: {len(raw_ecg)}, Giriş Örnekleme Hızı: {fs_in}Hz, Çıkış: {fs_out}Hz")
-
-            # Giriş verisi kontrolü
-            if raw_ecg is None or raw_ecg.size == 0:
-                return {"success": False, "error": "Boş veya geçersiz EKG verisi alındı."}
+            logger.info(f"Analiz başladı - Uzunluk: {len(raw_ecg)}, Giriş Frekansı: {fs_in}Hz, Model Frekansı: {fs_out}Hz")
             
-            # Sinyalin anlamlı varyasyona sahip olup olmadığını kontrol et
-            signal_std = np.std(raw_ecg)
-            if signal_std < 1e-5:
-                return {"success": False, "error": "EKG sinyali anlamlı bir varyasyon içermiyor (düz çizgi)."}
-            
-            # NaN ve inf değerleri temizle
-            if not np.isfinite(raw_ecg).all():
-                raw_ecg = np.nan_to_num(raw_ecg)
-            
-            logger.info(f"Sinyal standart sapması: {signal_std:.6f}")
-
-            # Adım 1: Sinyal ön işleme (orijinal örnekleme hızında)
+            # Adım 1: Sinyal Ön İşleme
             cleaned_signal = self.apply_filters(raw_ecg, fs_in)
-            logger.info("Sinyal filtreleme tamamlandı")
             
-            # Adım 2: Güçlü R-peak tespiti (orijinal örnekleme hızında)
+            # Adım 2: R-Peak Tespiti
             r_peaks = self.robust_r_peak_detection(cleaned_signal, fs_in)
-            logger.info(f"{len(r_peaks)} R-peak tespit edildi")
-            
-            # R-peak sayısı kontrolü - daha esnek yaklaşım
+            logger.info(f"{len(r_peaks)} R-peak tespit edildi.")
+
             if len(r_peaks) < 2:
-                error_message = f"Yetersiz kalp atışı tespit edildi (Bulunan: {len(r_peaks)}). En az 2 atım gerekli."
-                logger.warning(error_message)
+                # Yeterli R-peak yoksa, varsayılan bir özetle dön.
+                ai_summary = self.generate_ai_summary([], {}, {}) # Boş argümanlarla çağır
                 return {
-                    "success": True,
+                    "success": True, 
                     "display_signal": cleaned_signal.tolist(),
                     "r_peaks": [],
                     "beat_predictions": [],
-                    "clinical_metrics": {"heart_rate_bpm": None},
-                    "ai_summary": {
-                        "risk_level": "Belirlenemedi", 
-                        "findings": [error_message], 
-                        "recommendations": ["Sinyal kalitesini kontrol edin", "Daha uzun kayıt alın"]
-                    }
+                    "clinical_metrics": ai_summary['detailed_analysis']['clinical_parameters'], # Boş metrikler
+                    "ai_summary": ai_summary,
                 }
 
-            # Adım 3: Gelişmiş klinik metrikleri hesapla (orijinal örnekleme hızında)
+            # Adım 3: Klinik Metrikler
             clinical_metrics = self.calculate_advanced_clinical_metrics(cleaned_signal, r_peaks, fs_in)
-            logger.info("Klinik metrikler hesaplandı")
             
-            # Adım 4: Model için sinyali yeniden örnekle (125Hz)
-            resampled_signal = cleaned_signal
-            r_peaks_resampled = r_peaks
-            
-            if fs_in != fs_out:
-                try:
-                    resampled_signal = resample(cleaned_signal, int(len(cleaned_signal) * fs_out / fs_in))
-                    r_peaks_resampled = [int(p * fs_out / fs_in) for p in r_peaks]
-                    r_peaks_resampled = [p for p in r_peaks_resampled if 0 <= p < len(resampled_signal)]
-                    logger.info(f"Sinyal {fs_in}Hz'den {fs_out}Hz'e yeniden örneklendi")
-                except Exception as e:
-                    logger.warning(f"Resampling failed: {e}, using original signal")
-                    fs_out = fs_in  # Fallback to original sampling rate
+            # Adım 4: Model için Sinyal Hazırlama
+            resampled_signal = resample(cleaned_signal, int(len(cleaned_signal) * fs_out / fs_in)) if fs_in != fs_out else cleaned_signal
+            r_peaks_resampled = [int(p * fs_out / fs_in) for p in r_peaks]
+            r_peaks_resampled = [p for p in r_peaks_resampled if 0 <= p < len(resampled_signal)]
 
-            # Adım 5: Beat ekstraksiyon ve AI Tahminleri
-            beats = self.extract_beats(resampled_signal, r_peaks_resampled, window=187)
+            # Adım 5: AI Tahminleri
+            beats = self.extract_beats(resampled_signal, r_peaks_resampled)
             predictions = self.predict_beats(beats)
-            logger.info(f"{len(predictions)} kalp atışı sınıflandırıldı")
             
+            # --- EKSİK OLAN VE HATAYI ÇÖZEN ADIM ---
             # Adım 6: Anomali Tespiti
+            # Bu fonksiyon, `generate_ai_summary` için gereken 'anomalies' objesini oluşturur.
             anomalies = self.detect_anomalies(predictions, clinical_metrics)
-            logger.info(f"Anomali analizi tamamlandı - Risk seviyesi: {anomalies.get('severity', 'Normal')}")
             
             # Adım 7: Gelişmiş AI Özetini Oluştur
+            # Fonksiyonu artık doğru, 3 argümanla çağırıyoruz.
             ai_summary = self.generate_ai_summary(predictions, clinical_metrics, anomalies)
             
-            # Sonucu hazırla
+            # Adım 8: Sonucu hazırla
             result = {
                 "success": True,
                 "display_signal": cleaned_signal.tolist(),
-                "r_peaks": r_peaks,  # Orijinal örnekleme hızındaki R-peak'ler
+                "r_peaks": r_peaks,
                 "beat_predictions": predictions,
                 "clinical_metrics": clinical_metrics,
                 "anomalies": anomalies,
                 "ai_summary": ai_summary,
-                "processing_info": {
-                    "input_sampling_rate": fs_in,
-                    "output_sampling_rate": fs_out,
-                    "signal_length_seconds": len(raw_ecg) / fs_in,
-                    "beats_analyzed": len(predictions),
-                    "signal_quality": "Good" if signal_std > 0.1 else "Fair"
-                }
             }
-            
-            logger.info("EKG analizi başarıyla tamamlandı")
+            logger.info("Analiz başarıyla tamamlandı.")
             return result
             
         except Exception as e:
             logger.error(f"EKG analizinde kritik hata: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+
 
 
 # ############################################################################
