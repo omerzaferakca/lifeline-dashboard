@@ -1,46 +1,54 @@
-// src/pages/HomePage.js
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 function HomePage({ patients, onSelectPatient, onAddPatient, onEditPatient, onDeletePatient }) {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const handleSelect = (patient) => {
-    // Değişiklik yok, App.js'e tam hasta objesini gönderiyoruz.
+  const navigate = useNavigate();
+
+  const handleSelectAndNavigate = (patient) => {
     onSelectPatient(patient);
+    navigate('/detaylar');
   };
 
   return (
     <div className="page">
       <div className="page-header">
         <h1>Hasta Yönetimi</h1>
-        <p>Toplam {patients.length} hasta kaydı bulunmaktadır.</p>
+        <p>Kayıtlı {patients.length} hasta bulunmaktadır.</p>
       </div>
-      <div className="patient-controls">
+
+      <div className="controls-container">
+        <input
+          type="text"
+          className="search-bar"
+          placeholder="Hasta adı veya kimlik numarası ile ara..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
         <button className="btn btn-primary" onClick={onAddPatient}>
           + Yeni Hasta Ekle
         </button>
       </div>
-      <input
-        type="text"
-        className="search-bar"
-        placeholder="🔍 Hasta adı veya TC ile ara..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
+
       <div className="patient-list">
         {patients
           .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.tc.includes(searchTerm))
           .map(patient => (
-            <div key={patient.id} className="patient-list-item">
-              <div className="patient-list-info" onClick={() => handleSelect(patient)}>
+            // --- YENİ: Tüm kart artık tıklanabilir bir Link ---
+            <div 
+              key={patient.id} 
+              className="patient-list-item" 
+              onClick={() => handleSelectAndNavigate(patient)}
+            >
+              <div className="patient-list-header">
                 <h3 className="patient-name">{patient.name}</h3>
-                <p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender}</p>
+                <div className="patient-list-actions">
+                  <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); onEditPatient(patient); }}>Düzenle</button>
+                  <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); onDeletePatient(patient.id); }}>Sil</button>
+                </div>
               </div>
-              <div className="patient-list-actions">
-                <button className="btn btn-primary btn-sm" onClick={() => onEditPatient(patient)}>Düzenle</button>
-                <button className="btn btn-danger btn-sm" onClick={() => onDeletePatient(patient.id)}>Sil</button>
+              <div className="patient-list-details">
+                <p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender}</p>
               </div>
             </div>
           ))}

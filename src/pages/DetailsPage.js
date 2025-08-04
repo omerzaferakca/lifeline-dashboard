@@ -200,7 +200,7 @@ function DetailsPage({ patient }) {
       
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.width;
-      const pageHeight = doc.internal.pageSize.height;""
+      const pageHeight = doc.internal.pageSize.height;
       let yPosition = 20;
 
       // Başlık
@@ -562,7 +562,7 @@ function DetailsPage({ patient }) {
                   padding: '12px 20px',
                   fontSize: '16px',
                   fontWeight: 'bold',
-                  backgroundColor: (analysisResult && !isGeneratingPDF && !isLoading && analysisResult?.clinical_metrics) ? '#28a745' : '#6c757d',
+                  backgroundColor: (analysisResult && !isGeneratingPDF && !isLoading && analysisResult?.clinical_metrics) ? '#649DAD' : '#6c757d',
                   border: 'none',
                   borderRadius: '6px',
                   color: 'white',
@@ -570,11 +570,11 @@ function DetailsPage({ patient }) {
                   transition: 'background-color 0.3s ease'
                 }}
               >
-                {isGeneratingPDF ? '📄 PDF Oluşturuluyor...' : '📄 PDF Rapor Oluştur'}
+                {isGeneratingPDF ? 'Rapor Oluşturuluyor...' : 'Rapor Oluştur'}
               </button>
               {(!analysisResult || isLoading) && (
                 <p style={{marginTop: '10px', fontSize: '14px', color: '#6c757d', fontStyle: 'italic'}}>
-                  {isLoading ? 'Analiz yapılıyor, lütfen bekleyin...' : 'PDF raporu oluşturmak için önce bir EKG analizi yapın.'}
+                  {isLoading ? 'Analiz yapılıyor, lütfen bekleyin...' : 'Rapor oluşturmak için önce bir EKG analizi yapın.'}
                 </p>
               )}
               {(analysisResult && !analysisResult?.clinical_metrics && !isLoading) && (

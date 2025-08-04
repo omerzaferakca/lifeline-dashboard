@@ -1,147 +1,221 @@
-/* Genel Stiller ve Ana Yerleşim */
+/* App.css - YENİ NANE YEŞİLİ PROFESYONEL VE DİNAMİK TEMA */
+
+/* ------------------------- */
+/* --- 1. TEMEL DEĞİŞKENLER VE STİLLER --- */
+/* ------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Renk Yoğunluğu: Koyu -> Açık */
+  --primary-dark: #649DAD;     /* En yoğun Mavi-Yeşil (Butonlar, aktif linkler) */
+  --primary-main: #66C6BA;     /* Ana Tema Rengi (Hover, vurgular) */
+  --primary-light: #A4E5D9;    /* Daha açık Yeşil (İkincil arka planlar) */
+  --primary-lightest: #C8F4DE; /* En açık Yeşil (Vurgu arka planları) */
+  
+  --sidebar-bg: #33535c;         /* Koyu Antrasit Sidebar */
+  --sidebar-hover: #374151;      
+  
+  --background-color: #f3f4f6;   /* Neredeyse beyaz, çok açık Gri Arkaplan */
+  --surface-color: #ffffff;    /* Kartlar için Beyaz */
+  --text-color: #1f2937;       /* Koyu, okunaklı Metin */
+  --text-color-light: #6b7280;  /* İkincil Metin Rengi */
+  --border-color: #e5e7eb;       /* İnce Kenarlıklar */
+  --danger-color: #ef4444;     /* Tehlike Kırmızısı */
+  
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --border-radius: 8px;
+  --box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --transition: all 0.3s ease-in-out;
+}
+
 body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background-color: #f0f2f5;
+  margin: 0;
+  font-family: var(--font-family);
+  background-color: var(--background-color);
+  color: var(--text-color);
 }
 
+/* ------------------------- */
+/* --- 2. ANA YAPI (LAYOUT) --- */
+/* ------------------------- */
 .app-container { display: flex; min-height: 100vh; }
-.main-content { flex-grow: 1; padding: 2rem; overflow-y: auto; }
 
-/* Kenar Çubuğu (Sidebar) Stilleri */
-.sidebar { width: 260px; background-color: #ffffff; box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05); padding: 1.5rem 0; display: flex; flex-direction: column; justify-content: space-between; }
-.sidebar-logo { padding: 0 1.5rem; margin-bottom: 2rem; text-align: center; }
-.sidebar-logo h1 { font-size: 1.8rem; color: #333; margin: 0; }
-.sidebar-nav { list-style: none; padding: 0 1rem; }
-.sidebar-nav a { display: block; padding: 0.9rem 1.5rem; margin-bottom: 0.5rem; text-decoration: none; color: #555; border-radius: 8px; font-weight: 500; transition: background-color 0.2s, color 0.2s; }
-.sidebar-nav a:hover { background-color: #f0f2f5; }
-.sidebar-nav a.active { background-color: #0d6efd; color: white; }
-
-/* Sayfa ve İçerik Stilleri */
-.page { background-color: #ffffff; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
-.page-header { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #dee2e6; }
-.page-header h1 { margin: 0; font-size: 2rem; }
-.page-header p { margin: 0.5rem 0 0; color: #6c757d; }
-
-/* Anasayfa Özel Stilleri */
-.patient-controls { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
-.search-bar { width: 100%; padding: 0.8rem 1.2rem; font-size: 1rem; border: 1px solid #ced4da; border-radius: 8px; margin-bottom: 1.5rem; box-sizing: border-box; }
-.patient-list { display: flex; flex-direction: column; gap: 1rem; }
-
-/* Anasayfa Liste Elemanı Stilleri */
-.patient-list-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; border: 1px solid #e9ecef; border-radius: 8px; transition: box-shadow 0.2s, border-color 0.2s; }
-.patient-list-item:hover { border-color: #0d6efd; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
-.patient-list-info { cursor: pointer; flex-grow: 1; }
-.patient-list-info .patient-name { margin: 0 0 0.5rem 0; color: #0d6efd; font-size: 1.3rem; }
-.patient-list-info p { margin: 0.2rem 0; color: #6c757d; font-size: 0.9rem; }
-.patient-list-actions { display: flex; gap: 0.5rem; padding-left: 1rem; }
-
-/* Genel Kart Stili */
-.patient-card { background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-.patient-card h3 { margin-top: 0; margin-bottom: 1rem; font-size: 1.2rem; }
-.patient-card p { margin: 0.5rem 0; color: #495057; font-size: 1rem; }
-.patient-card p strong { color: #212529; }
-.patient-card ul { padding-left: 20px; margin: 0; }
-.patient-card ul li { margin-bottom: 0.25rem; color: #495057; }
-
-/* --- YENİ: Detay Sayfası Düzen Stilleri --- */
-.details-layout {
-  display: grid;
-  grid-template-columns: 2fr 1fr; /* Sol sütun 2 kat, sağ sütun 1 kat genişlikte */
-  gap: 1.5rem;
-  align-items: start;
+.main-content {
+  flex-grow: 1;
+  padding: 2.5rem;
+  overflow-y: auto;
+  transition: margin-left 0.3s ease-in-out;
 }
 
-.layout-left-column, .layout-right-column {
+/* ------------------------- */
+/* --- 3. AÇILIP KAPANAN SIDEBAR --- */
+/* ------------------------- */
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background-color: var(--sidebar-bg);
+  padding: 1.5rem 0;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  transition: var(--transition);
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  z-index: 1000;
 }
-/* ------------------------------------------- */
 
-/* Detay Sayfası EKG Listesi */
-.ekg-file-list { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; }
-.ekg-file-list li { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 0.5rem; border: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; transition: background-color 0.2s; }
-.ekg-file-list li:hover { background-color: #f8f9fa; }
-.ekg-file-list li.active-file { background-color: #0d6efd; color: white; border-color: #0d6efd; font-weight: 500; }
-.ekg-file-list li span { font-size: 0.8rem; color: #6c757d; }
-.ekg-file-list li.active-file span { color: #e0e0e0; }
+.sidebar.closed {
+  width: 80px;
+  min-width: 80px;
+}
 
-/* --- YENİ: Grafik Grubu Stilleri --- */
-.chart-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem; /* Grafikler arası boşluk */
-}
-.chart-container-single {
-  height: 200px; /* Her bir grafiğin yüksekliği */
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 1rem;
-}
-.loading-placeholder {
+.main-content.sidebar-open { margin-left: 260px; }
+.main-content.sidebar-closed { margin-left: 80px; }
+
+.sidebar-toggle {
+  position: absolute;
+  top: 20px;
+  right: -15px;
+  background-color: var(--primary-dark);
+  color: white;
+  border: 2px solid var(--surface-color);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  color: #6c757d;
-  background-color: #f8f9fa;
-  border-radius: 8px;
+  cursor: pointer;
+  z-index: 1001;
+  transition: transform 0.3s ease-in-out, background-color 0.2s;
 }
-/* ------------------------------------ */
+.sidebar-toggle:hover { background-color: var(--primary-main); transform: scale(1.1); }
+.sidebar.closed .sidebar-toggle { transform: rotate(180deg); }
 
+.sidebar-logo-link { text-decoration: none; color: inherit; }
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  height: 120px;
+  position: relative;
+}
 
-/* Buton Stilleri */
-.btn { padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 6px; border: 1px solid transparent; cursor: pointer; font-weight: 500; text-decoration: none; display: inline-block; }
-.btn-sm { padding: 0.4rem 0.8rem; font-size: 0.875rem; }
-.btn-primary { color: #fff; background-color: #0d6efd; border-color: #0d6efd; }
-.btn-primary:hover { background-color: #0b5ed7; border-color: #0a58ca; }
-.btn-danger { color: #fff; background-color: #dc3545; border-color: #dc3545; }
-.btn-danger:hover { background-color: #bb2d3b; border-color: #b02a37; }
-.btn-secondary { color: #fff; background-color: #6c757d; border-color: #6c757d; }
-.btn-secondary:hover { background-color: #5c636a; border-color: #565e64; }
+.logo-image {
+  height: 120px;
+  width: auto;
+  filter: invert(30%) sepia(85%) saturate(2500%) hue-rotate(335deg) brightness(100%) contrast(100%);
+  animation: heartbeat 2.5s infinite ease-in-out;
+  transition: var(--transition);
+  opacity: 1;
+  position: absolute;
+}
 
-/* Modal Stilleri */
-.modal { position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; }
-.modal.show { display: flex; }
-.modal-content { background-color: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); width: 90%; max-width: 500px; position: relative; }
-.close { position: absolute; top: 1rem; right: 1rem; color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
-.close:hover { color: #000; }
-.form-group { margin-bottom: 1.2rem; }
-.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
-.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
-.form-group .error-text { color: #dc3545; font-size: 0.8rem; margin-top: 0.25rem; }
+.sidebar-logo .icon-logo {
+  font-size: 40px;
+  color: var(--danger-color);
+  animation: heartbeat 2.5s infinite ease-in-out;
+  transition: var(--transition);
+  opacity: 0;
+  position: absolute;
+}
 
-/* Yükleme Anımasyonu Stili */
-.loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255, 255, 255, 0.8); display: flex; justify-content: center; align-items: center; z-index: 10; border-radius: 8px; }
-.loading-overlay span { font-size: 1.2rem; font-weight: 500; color: #333; }
+.sidebar.closed .logo-image { opacity: 0; transform: scale(0.5); }
+.sidebar.closed .icon-logo { opacity: 1; transform: scale(1); }
+.sidebar:not(.closed) .icon-logo { opacity: 0; transform: scale(0.5); }
 
-/* Yapay Zeka Durum Renkleri */
-.status-düşük { font-weight: bold; color: #28a745; }
-.status-orta { font-weight: bold; color: #ffc107; }
-.status-yüksek { font-weight: bold; color: #dc3545; }
-.status-kritik { font-weight: bold; color: #842029; background-color: #f8d7da; padding: 0.2rem 0.4rem; border-radius: 4px; }
+@keyframes heartbeat { 0%{transform: scale(1);} 5%{transform: scale(1.08);} 10%{transform: scale(1);} 15%{transform: scale(1.15);} 50%{transform: scale(1);} 100%{transform: scale(1);} }
 
+.sidebar-nav { list-style: none; padding: 0 1rem; }
+.sidebar-nav a { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.5rem; margin-bottom: 0.5rem; text-decoration: none; color: #d1d5db; border-radius: var(--border-radius); font-weight: 500; transition: var(--transition); white-space: nowrap; overflow: hidden; }
+.sidebar-nav a:hover { background-color: var(--sidebar-hover); color: white; }
+.sidebar-nav a.active { background-color: var(--primary-dark); color: white; }
+.sidebar-nav .nav-icon { font-size: 1.5rem; flex-shrink: 0; }
+.sidebar.closed .sidebar-nav a { justify-content: center; }
+.sidebar.closed .nav-text { opacity: 0; width: 0; visibility: hidden; }
 
-/* Yeni İlaç Giriş Stilleri */
+/* ------------------------- */
+/* --- 4. ANASAYFA --- */
+/* ------------------------- */
+.controls-container { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+.search-bar { flex-grow: 1; padding: 0.8rem 1.2rem; font-size: 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius); box-sizing: border-box; transition: var(--transition); }
+.search-bar:focus { border-color: var(--primary-main); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-light) 40%, transparent); outline: none; }
+.patient-list { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.patient-list-item { 
+  background-color: var(--surface-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  transition: var(--transition);
+  cursor: pointer;
+  padding: 1.5rem;
+}
+.patient-list-item:hover { 
+  border-left: 4px solid var(--primary-main);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+.patient-list-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem; }
+.patient-name { color: var(--text-color); font-size: 1.25rem; font-weight: 600; margin: 0; }
+.patient-list-details p { margin: 0.25rem 0; color: var(--text-color-light); }
+.patient-list-actions { display: flex; gap: 0.5rem; }
+
+/* ------------------------- */
+/* --- 5. DETAY SAYFASI VE KARTLAR --- */
+/* ------------------------- */
+.page { background-color: var(--surface-color); border-radius: var(--border-radius); padding: 2.5rem; box-shadow: var(--box-shadow); }
+.page-header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); }
+.page-header h1 { margin: 0; font-size: 2.2rem; font-weight: 600; }
+.page-header p { margin: 0.5rem 0 0; color: var(--text-color-light); font-size: 1.1rem; }
+.patient-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; }
+.details-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: start; }
+.layout-left-column, .layout-right-column { display: flex; flex-direction: column; gap: 1.5rem; }
+.ekg-file-list { list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto; }
+.ekg-file-list li { padding: 0.75rem 1rem; border-radius: var(--border-radius); margin-bottom: 0.5rem; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; transition: var(--transition); }
+.ekg-file-list li:hover { background-color: #f1f5f9; }
+.ekg-file-list li.active-file { background-color: var(--primary-dark); color: white; border-color: var(--primary-dark); }
+.ekg-file-list li.active-file span { color: #e0e0e0; }
+
+/* ------------------------- */
+/* --- 6. MODAL STİLLERİ --- */
+/* ------------------------- */
+.modal { position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(17, 24, 39, 0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
+.modal.show { opacity: 1; visibility: visible; }
+.modal-content { background-color: var(--surface-color); padding: 2rem 2.5rem; border-radius: var(--border-radius); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); width: 90%; max-width: 550px; position: relative; transform: scale(0.95); transition: transform 0.3s ease; }
+.modal.show .modal-content { transform: scale(1); }
+.modal-content h2 { margin-top: 0; margin-bottom: 2rem; font-size: 1.5rem; font-weight: 600; color: var(--text-color); border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
+.close { position: absolute; top: 1rem; right: 1.5rem; color: var(--text-color-light); font-size: 32px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
+.close:hover { color: var(--text-color); transform: rotate(90deg); }
+.form-group { margin-bottom: 1.25rem; }
+.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-color); }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; font-size: 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius); box-sizing: border-box; transition: var(--transition); background-color: #f9fafb; }
+.form-group textarea { resize: vertical; min-height: 80px; max-height: 150px; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary-main); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-main) 20%, transparent); outline: none; background-color: var(--surface-color); }
+.form-group .error-text { color: var(--danger-color); font-size: 0.875rem; margin-top: 0.25rem; display: block; }
 .medication-input-group { display: flex; gap: 0.5rem; }
 .medication-input-group input { flex-grow: 1; }
-.medication-list { list-style: none; padding: 0; margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.medication-list li { background-color: #e9ecef; padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.9rem; display: flex; align-items: center; }
-.medication-list li span { margin-left: 0.5rem; color: #6c757d; cursor: pointer; font-weight: bold; }
-.medication-list li span:hover { color: #dc3545; }
+.medication-list { list-style: none; padding: 0; margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.medication-list li { background-color: var(--primary-lightest); color: var(--primary-dark); padding: 0.3rem 0.8rem; border-radius: 9999px; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; }
+.medication-list li span { margin-left: 0.5rem; color: var(--text-color-light); cursor: pointer; font-weight: bold; transition: var(--transition); }
+.medication-list li span:hover { color: var(--danger-color); transform: scale(1.2); }
 
-.btn-success {
-  color: #fff;
-  background-color: #198754;
-  border-color: #198754;
-}
-
-.btn-success:hover {
-  background-color: #157347;
-  border-color: #146c43;
-}
+/* ------------------------- */
+/* --- 7. DİĞER KOMPONENTLER --- */
+/* ------------------------- */
+.btn { padding: 0.75rem 1.5rem; font-size: 1rem; border-radius: var(--border-radius); border: 1px solid transparent; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; transition: var(--transition); }
+.btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
+.btn-primary { color: #fff; background-color: var(--primary-dark); border-color: var(--primary-dark); }
+.btn-primary:hover { background-color: var(--primary-main); border-color: var(--primary-main); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+.btn-danger { color: #fff; background-color: var(--danger-color); border-color: var(--danger-color); }
+.btn-danger:hover { background-color: #be123c; border-color: #9f1239; }
+.btn-secondary { color: var(--text-color); background-color: #e5e7eb; border-color: #e5e7eb; }
+.btn-secondary:hover { background-color: #d1d5db; }
+.btn-success { color: #fff; background-color: var(--primary-main); border-color: var(--primary-main); }
+.btn-success:hover { background-color: var(--primary-dark); border-color: var(--primary-dark); }
+button:disabled { cursor: not-allowed !important; opacity: 0.65; transform: none !important; box-shadow: none !important; }
+.loading-overlay { position: absolute; inset: 0; background-color: rgba(255, 255, 255, 0.8); display: flex; justify-content: center; align-items: center; z-index: 10; border-radius: var(--border-radius); }
+.loading-overlay span { font-size: 1.2rem; font-weight: 500; color: var(--text-color); }
+.status-düşük { font-weight: bold; color: #16a34a; }
+.status-orta { font-weight: bold; color: #f59e0b; }
+.status-yüksek, .status-kritik { font-weight: bold; color: var(--danger-color); }

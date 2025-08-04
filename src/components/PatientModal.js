@@ -23,15 +23,20 @@ function PatientModal({ isOpen, onClose, onSave, patient }) {
     }
   }, [isOpen, patient]);
 
+  // --- GÜNCELLENMİŞ DOĞRULAMA FONKSİYONU ---
   const validateField = (name, value) => {
     switch (name) {
       case 'tc':
         return /^\d{11}$/.test(value) ? '' : 'TC Kimlik No 11 haneli bir sayı olmalıdır.';
       case 'phone':
-        return !value || /^\d{10,11}$/.test(value.replace(/\D/g, '')) ? '' : 'Telefon 10 veya 11 haneli olmalıdır.';
+        // Boş bırakılabilir, ama doluysa 5 ile başlamalı ve 10 haneli olmalı
+        return !value || /^5\d{9}$/.test(value.replace(/\D/g, '')) ? '' : 'Telefon 5xxxxxxxxx formatında 10 haneli olmalıdır.';
       case 'age':
-        return value && parseInt(value, 10) >= 0 ? '' : 'Yaş negatif olamaz.';
-      default: return '';
+        // Yaşın 0-120 arasında olmasını kontrol et
+        const ageNum = parseInt(value, 10);
+        return value && !isNaN(ageNum) && ageNum >= 0 && ageNum <= 120 ? '' : 'Yaş 0 ile 120 arasında olmalıdır.';
+      default:
+        return '';
     }
   };
 
@@ -56,9 +61,13 @@ function PatientModal({ isOpen, onClose, onSave, patient }) {
     e.preventDefault();
     const finalErrors = {};
     Object.keys(formData).forEach(key => {
+      // Sadece formda görünen alanları doğrula
+      if (['tc', 'phone', 'age'].includes(key)) {
         const error = validateField(key, formData[key]);
         if (error) finalErrors[key] = error;
+      }
     });
+
     if (Object.keys(finalErrors).length > 0) {
         setErrors(finalErrors);
         alert("Lütfen formdaki hataları düzeltin.");
@@ -70,9 +79,9 @@ function PatientModal({ isOpen, onClose, onSave, patient }) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal show">
+    <div className={`modal ${isOpen ? 'show' : ''}`}>
       <div className="modal-content">
-        <span className="close" onClick={onClose}>×</span>
+        <span className="close" onClick={onClose} title="Kapat">×</span>
         <form onSubmit={handleSubmit}>
           <h2>{patient ? 'Hasta Bilgilerini Düzenle' : 'Yeni Hasta Ekle'}</h2>
           
@@ -87,7 +96,7 @@ function PatientModal({ isOpen, onClose, onSave, patient }) {
           </div>
           <div className="form-group">
             <label htmlFor="age">Yaş:</label>
-            <input type="number" id="age" name="age" value={formData.age} onChange={handleChange} required min="0" />
+            <input type="number" id="age" name="age" value={formData.age} onChange={handleChange} required min="0" max="120" />
             {errors.age && <small className="error-text">{errors.age}</small>}
           </div>
           <div className="form-group">
@@ -97,21 +106,26 @@ function PatientModal({ isOpen, onClose, onSave, patient }) {
             </select>
           </div>
           <div className="form-group">
-            <label htmlFor="phone">Telefon:</label>
-            <input type="tel" id="phone" name="phone" value={formData.phone || ''} onChange={handleChange} placeholder="5xxxxxxxxx"/>
+            <label htmlFor="phone">Telefon (İsteğe Bağlı):</label>
+            <input type="tel" id="phone" name="phone" value={formData.phone || ''} onChange={handleChange} placeholder="5xxxxxxxxx" maxLength="10"/>
             {errors.phone && <small className="error-text">{errors.phone}</small>}
           </div>
           <div className="form-group">
             <label htmlFor="medications">Kullanılan İlaçlar:</label>
             <div className="medication-input-group">
-              <input type="text" id="medications" value={medInput} onChange={(e) => setMedInput(e.target.value)} 
+              <input 
+                type="text" id="medications" value={medInput} 
+                onChange={(e) => setMedInput(e.target.value)} 
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMedication(); } }}
-                placeholder="İlaç ekleyip 'Ekle'ye basın..."/>
+                placeholder="İlaç ekleyip 'Ekle'ye basın..."
+              />
               <button type="button" onClick={addMedication} className="btn btn-secondary btn-sm">Ekle</button>
             </div>
             <ul className="medication-list">
               {medications.map((med, index) => (
-                <li key={index}>{med} <span onClick={() => removeMedication(med)} title="Bu ilacı kaldır">×</span></li>
+                <li key={index}>
+                  {med} <span onClick={() => removeMedication(med)} title="Bu ilacı kaldır">×</span>
+                </li>
               ))}
             </ul>
           </div>
@@ -120,10 +134,13 @@ function PatientModal({ isOpen, onClose, onSave, patient }) {
             <textarea id="complaints" name="complaints" value={formData.complaints || ''} onChange={handleChange} rows="3"></textarea>
           </div>
           
-          <button type="submit" className="btn btn-primary">{patient ? 'Güncelle' : 'Kaydet'}</button>
+          <button type="submit" className="btn btn-primary" style={{width: '100%', padding: '0.8rem'}}>
+            {patient ? 'Bilgileri Güncelle' : 'Hastayı Kaydet'}
+          </button>
         </form>
       </div>
     </div>
   );
 }
+
 export default PatientModal;
