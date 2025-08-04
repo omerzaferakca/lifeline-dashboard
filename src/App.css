@@ -1,4 +1,4 @@
-/* App.css - YENİ NANE YEŞİLİ PROFESYONEL VE DİNAMİK TEMA */
+/* App.css - YENİ TEMA (SIDEBAR ORTALAMA DÜZELTMESİYLE) */
 
 /* ------------------------- */
 /* --- 1. TEMEL DEĞİŞKENLER VE STİLLER --- */
@@ -7,21 +7,18 @@
 
 :root {
   /* Renk Yoğunluğu: Koyu -> Açık */
-  --primary-dark: #649DAD;     /* En yoğun Mavi-Yeşil (Butonlar, aktif linkler) */
-  --primary-main: #66C6BA;     /* Ana Tema Rengi (Hover, vurgular) */
-  --primary-light: #A4E5D9;    /* Daha açık Yeşil (İkincil arka planlar) */
-  --primary-lightest: #C8F4DE; /* En açık Yeşil (Vurgu arka planları) */
-  
-  --sidebar-bg: #33535c;         /* Koyu Antrasit Sidebar */
-  --sidebar-hover: #374151;      
-  
-  --background-color: #f3f4f6;   /* Neredeyse beyaz, çok açık Gri Arkaplan */
-  --surface-color: #ffffff;    /* Kartlar için Beyaz */
-  --text-color: #1f2937;       /* Koyu, okunaklı Metin */
-  --text-color-light: #6b7280;  /* İkincil Metin Rengi */
-  --border-color: #e5e7eb;       /* İnce Kenarlıklar */
-  --danger-color: #ef4444;     /* Tehlike Kırmızısı */
-  
+  --primary-dark: #649DAD;
+  --primary-main: #66C6BA;
+  --primary-light: #A4E5D9;
+  --primary-lightest: #C8F4DE;
+  --sidebar-bg: #111827;
+  --sidebar-hover: #374151;
+  --background-color: #f3f4f6;
+  --surface-color: #ffffff;
+  --text-color: #1f2937;
+  --text-color-light: #6b7280;
+  --border-color: #e5e7eb;
+  --danger-color: #ef4444;
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --border-radius: 8px;
   --box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
@@ -39,7 +36,6 @@ body {
 /* --- 2. ANA YAPI (LAYOUT) --- */
 /* ------------------------- */
 .app-container { display: flex; min-height: 100vh; }
-
 .main-content {
   flex-grow: 1;
   padding: 2.5rem;
@@ -95,6 +91,7 @@ body {
 .sidebar-logo {
   display: flex;
   align-items: center;
+  /* --- DÜZELTME: Logo konteynerini her zaman ortala --- */
   justify-content: center;
   padding: 1rem;
   margin-bottom: 1.5rem;
@@ -132,7 +129,13 @@ body {
 .sidebar-nav a:hover { background-color: var(--sidebar-hover); color: white; }
 .sidebar-nav a.active { background-color: var(--primary-dark); color: white; }
 .sidebar-nav .nav-icon { font-size: 1.5rem; flex-shrink: 0; }
-.sidebar.closed .sidebar-nav a { justify-content: center; }
+
+/* --- DÜZELTME: Sidebar kapalıyken navigasyon linklerini ortala --- */
+.sidebar.closed .sidebar-nav a {
+  justify-content: center;
+  gap: 0;
+}
+
 .sidebar.closed .nav-text { opacity: 0; width: 0; visibility: hidden; }
 
 /* ------------------------- */
@@ -180,25 +183,120 @@ body {
 /* ------------------------- */
 /* --- 6. MODAL STİLLERİ --- */
 /* ------------------------- */
-.modal { position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(17, 24, 39, 0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
-.modal.show { opacity: 1; visibility: visible; }
-.modal-content { background-color: var(--surface-color); padding: 2rem 2.5rem; border-radius: var(--border-radius); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); width: 90%; max-width: 550px; position: relative; transform: scale(0.95); transition: transform 0.3s ease; }
-.modal.show .modal-content { transform: scale(1); }
-.modal-content h2 { margin-top: 0; margin-bottom: 2rem; font-size: 1.5rem; font-weight: 600; color: var(--text-color); border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
-.close { position: absolute; top: 1rem; right: 1.5rem; color: var(--text-color-light); font-size: 32px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
+
+.modal { 
+  position: fixed; 
+  z-index: 1000; 
+  left: 0; top: 0; 
+  width: 100%; height: 100%; 
+  background-color: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(4px); 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  opacity: 0; 
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  padding: 1rem; /* Küçük ekranlarda kenar boşluğu */
+}
+
+.modal.show { 
+  opacity: 1; 
+  visibility: visible; 
+}
+
+.modal-content { 
+  background-color: var(--surface-color); 
+  border-radius: var(--border-radius); 
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  width: 100%; /* Genişliği %100 yap */
+  max-width: 550px; 
+  position: relative;
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+  
+  /* --- YENİ: Flexbox yapısı ve maksimum yükseklik --- */
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh; /* Ekran yüksekliğinin %90'ını geçmesin */
+}
+
+.modal.show .modal-content { 
+  transform: scale(1); 
+}
+
+/* Modal başlığını ayrı bir blok olarak ele al */
+.modal-content h2 {
+  margin: 0;
+  padding: 1.5rem 2.5rem;
+  font-size: 1.5rem; 
+  font-weight: 600;
+  color: var(--text-color); 
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0; /* Başlık küçülmesin */
+}
+
+.close { 
+  position: absolute; 
+  top: 1.5rem; right: 1.5rem; 
+  color: var(--text-color-light); 
+  font-size: 32px; 
+  font-weight: bold; 
+  cursor: pointer; 
+  transition: transform 0.2s;
+  z-index: 10;
+}
 .close:hover { color: var(--text-color); transform: rotate(90deg); }
+
+/* --- YENİ: Formu içeren ve kaydırılabilir olan ana gövde --- */
+.modal-content form {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto; /* Dikeyde taşarsa scroll bar göster */
+  padding: 2rem 2.5rem;
+}
+/* ----------------------------------------------------------- */
+
 .form-group { margin-bottom: 1.25rem; }
 .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-color); }
-.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; font-size: 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius); box-sizing: border-box; transition: var(--transition); background-color: #f9fafb; }
-.form-group textarea { resize: vertical; min-height: 80px; max-height: 150px; }
-.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary-main); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-main) 20%, transparent); outline: none; background-color: var(--surface-color); }
-.form-group .error-text { color: var(--danger-color); font-size: 0.875rem; margin-top: 0.25rem; display: block; }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 0.75rem 1rem; font-size: 1rem; border: 1px solid var(--border-color);
+  border-radius: var(--border-radius); box-sizing: border-box; transition: var(--transition);
+  background-color: #f9fafb;
+}
+
+.form-group textarea {
+  resize: vertical; 
+  min-height: 80px; 
+  max-height: 150px;
+}
+
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent);
+  outline: none;
+  background-color: var(--surface-color);
+}
+
+.form-group .error-text { 
+  color: var(--danger-color); font-size: 0.875rem; 
+  margin-top: 0.25rem; display: block;
+}
+
 .medication-input-group { display: flex; gap: 0.5rem; }
 .medication-input-group input { flex-grow: 1; }
 .medication-list { list-style: none; padding: 0; margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .medication-list li { background-color: var(--primary-lightest); color: var(--primary-dark); padding: 0.3rem 0.8rem; border-radius: 9999px; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; }
 .medication-list li span { margin-left: 0.5rem; color: var(--text-color-light); cursor: pointer; font-weight: bold; transition: var(--transition); }
 .medication-list li span:hover { color: var(--danger-color); transform: scale(1.2); }
+
+/* --- YENİ: Butonu içeren sabit alt kısım --- */
+.modal-content form .btn-primary {
+  margin-top: 1rem; /* Formun geri kalanından ayır */
+  width: 100%;
+  padding: 0.8rem;
+  flex-shrink: 0; /* Buton küçülmesin */
+}
 
 /* ------------------------- */
 /* --- 7. DİĞER KOMPONENTLER --- */

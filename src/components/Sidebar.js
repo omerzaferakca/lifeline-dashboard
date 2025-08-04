@@ -8,10 +8,12 @@ import {
   FaInfoCircle, 
   FaBars, 
   FaTimes,
-  FaHeartbeat // --- DÜZELTME: FaHeartPulse yerine FaHeartbeat kullanıldı ---
+  FaHeartbeat
 } from 'react-icons/fa';
 
-import { BsGraphUp } from "react-icons/bs";
+// --- YENİ: Detaylar sayfası için MdOutlineMonitorHeart ikonu import edildi ---
+import { MdOutlineMonitorHeart } from "react-icons/md";
+
 
 function Sidebar({ onHomeClick, isOpen, setIsOpen }) {
   return (
@@ -25,8 +27,6 @@ function Sidebar({ onHomeClick, isOpen, setIsOpen }) {
         <Link to="/" className="sidebar-logo-link" onClick={onHomeClick}>
           <div className="sidebar-logo">
             <img src={logo} alt="LifeLine Logosu" className="logo-image" />
-            
-            {/* --- DÜZELTME: FaHeartPulse yerine FaHeartbeat kullanıldı --- */}
             <FaHeartbeat className="icon-logo" />
           </div>
         </Link>
@@ -41,7 +41,8 @@ function Sidebar({ onHomeClick, isOpen, setIsOpen }) {
             </li>
             <li>
               <NavLink to="/detaylar">
-                <BsGraphUp className="nav-icon" />
+                {/* --- DEĞİŞİKLİK: İkon güncellendi --- */}
+                <MdOutlineMonitorHeart className="nav-icon" />
                 <span className="nav-text">Detaylar</span>
               </NavLink>
             </li>
