@@ -101,7 +101,7 @@ function DetailsPage({ patient }) {
       const content = e.target.result;
       const ekgData = content.split(/[\n,;]/).map(val => parseFloat(val.trim())).filter(v => !isNaN(v));
       if (ekgData.length < 100) { alert("Geçersiz EKG verisi."); return; }
-      const payload = { name: file.name, uploadedAt: new Date().toISOString(), data: ekgData, samplingRate: 500 };
+      const payload = { name: file.name, uploadedAt: new Date().toISOString(), data: ekgData, samplingRate: 200 };
       try {
         const res = await fetch(`${API_URL}/patients/${patient.id}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (res.ok) { 

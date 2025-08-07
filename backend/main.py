@@ -317,34 +317,40 @@ class ECGProcessor:
 
 
     def extract_beats(self, signal: np.ndarray, r_peaks: list, window_size: int = 187) -> np.ndarray:
+        """
+        Orijinal eğitim reçetesindeki segmentasyon, padding ve discarding
+        kurallarını harfiyen uygular.
+        """
         if len(r_peaks) < 2:
             return np.array([])
         
         beats = []
-        # Son R-peak'in de işlenebilmesi için döngüyü tüm R-peak'ler üzerinde kuruyoruz.
-        # Bir sonraki R-peak'i referans alıyoruz.
+        logger.info(f"Extracting beats from {len(r_peaks)} R-peaks using training recipe...")
+        
         for i in range(len(r_peaks) - 1):
+            # Bir R-peak'ten bir sonrakinin başlangıcına kadar olan bölümü al
             start = r_peaks[i]
             end = r_peaks[i+1]
             
             segment = signal[start:end]
             
-            # Kural 4: 187'den uzunsa ATLA (discard)
+            # Adım 4: 187'den uzunsa ATLA (discard)
             if len(segment) > window_size:
                 continue
                 
-            # Kural 5: 187'den kısaysa sonuna SIFIR EKLE (pad with zeroes)
+            # Adım 5: 187'den kısaysa sonuna SIFIR EKLE (pad with zeroes)
             if len(segment) < window_size:
                 padding = np.zeros(window_size - len(segment))
                 segment = np.concatenate([segment, padding])
             
             beats.append(segment)
             
+        logger.info(f"Extracted {len(beats)} valid beats (segments > 187 were discarded)")
         return np.array(beats)
-
     
-    def predict_beats(self, beats: np.ndarray) -> List[Dict]:
-        """Predict beat classifications using the CNN model with improved error handling."""
+    # ===== DÜZELTME: Test_model.py'deki DOĞRU normalizasyon ve işleme yöntemini kullan =====
+    def predict_beats(self, beats: np.ndarray, fs_in: int = 200, fs_model: int = 125) -> List[Dict]:
+        """Predict beat classifications using the CNN model with correct preprocessing pipeline."""
         if self.model is None:
             logger.warning("Model not available for beat prediction")
             return []
@@ -356,22 +362,36 @@ class ECGProcessor:
         predictions = []
         successful_predictions = 0
         
-        logger.info(f"Starting prediction for {len(beats)} beats")
+        logger.info(f"Starting prediction for {len(beats)} beats with correct preprocessing pipeline")
+        logger.info(f"Resampling from {fs_in}Hz to {fs_model}Hz and applying Min-Max normalization")
         
         try:
             with torch.no_grad():
                 for i, beat in enumerate(beats):
                     try:
-                        # Normalize beat
-                        beat_std = np.std(beat)
-                        if beat_std < 1e-8:
-                            logger.debug(f"Skipping flat beat {i}")
-                            continue
+                        # DOĞRU İŞLEM SIRASI:
+                        # 1. Her bir atımı fs_in'den fs_model'e yeniden örnekle
+                        if fs_in != fs_model:
+                            resampled_beat = resample(beat, int(len(beat) * fs_model / fs_in))
+                        else:
+                            resampled_beat = beat.copy()
                         
-                        beat_norm = (beat - np.mean(beat)) / beat_std
+                        # 2. Min-Max normalizasyon (0-1 arası) - test_model.py'deki gibi
+                        min_val, max_val = np.min(resampled_beat), np.max(resampled_beat)
+                        if (max_val - min_val) > 1e-6:
+                            normalized_beat = (resampled_beat - min_val) / (max_val - min_val)
+                        else:
+                            normalized_beat = resampled_beat - min_val
                         
-                        # Convert to tensor
-                        tensor = torch.FloatTensor(beat_norm).unsqueeze(0).unsqueeze(0).to(self.device)
+                        # 3. 187 boyutuna getir (padding/truncating)
+                        final_beat = np.zeros(187)
+                        if len(normalized_beat) >= 187:
+                            final_beat = normalized_beat[:187]
+                        else:
+                            final_beat[:len(normalized_beat)] = normalized_beat
+                        
+                        # 4. Tensor'e dönüştür ve tahmin yap
+                        tensor = torch.FloatTensor(final_beat).unsqueeze(0).unsqueeze(0).to(self.device)
                         
                         # Validate tensor
                         if not torch.isfinite(tensor).all():
@@ -406,7 +426,7 @@ class ECGProcessor:
         except Exception as e:
             logger.error(f"Critical error in beat prediction: {e}")
         
-        logger.info(f"Successfully predicted {successful_predictions} out of {len(beats)} beats")
+        logger.info(f"Successfully predicted {successful_predictions} out of {len(beats)} beats using corrected pipeline")
         return predictions
     
     def calculate_advanced_clinical_metrics(self, signal: np.ndarray, r_peaks: List[int], fs: int) -> Dict:
@@ -902,7 +922,7 @@ class ECGProcessor:
             "anomalies": anomalies
         }
     
-    def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 500, fs_out: int = 125) -> Dict:
+    def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 200, fs_out: int = 125) -> Dict:
         """
         Ana EKG işleme akışı.
         DÜZELTME: Eksik 'anomalies' argümanı eklendi.
@@ -1172,7 +1192,7 @@ def upload_file(patient_id):
         # Frontend'den gelen anahtar isimleriyle eşleştir
         file_name = data.get('name')
         ekg_data_list = data.get('data')
-        sampling_rate = data.get('samplingRate', 500)
+        sampling_rate = data.get('samplingRate', 200)
         uploaded_at = data.get('uploadedAt', datetime.now().isoformat())
 
         if not ekg_data_list or not file_name:
