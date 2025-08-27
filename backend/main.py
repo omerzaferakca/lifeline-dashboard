@@ -49,7 +49,6 @@ class DatabaseManager:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Patients table (değişiklik yok)
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS patients (
                         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, tc TEXT UNIQUE NOT NULL,
@@ -57,7 +56,6 @@ class DatabaseManager:
                         complaints TEXT, created_at DATETIME, updated_at DATETIME
                     )''')
                 
-                # --- DÜZELTME: `duration` sütunu CREATE komutuna eklendi ---
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS ekg_files (
                         id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id INTEGER NOT NULL, file_name TEXT NOT NULL,
@@ -66,7 +64,6 @@ class DatabaseManager:
                         FOREIGN KEY (patient_id) REFERENCES patients (id) ON DELETE CASCADE
                     )''')
                 
-                # --- DÜZELTME: Mevcut veritabanları için `duration` sütununu ekleyen kontrol ---
                 try:
                     cursor.execute("SELECT duration FROM ekg_files LIMIT 1")
                 except sqlite3.OperationalError:
@@ -74,7 +71,6 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE ekg_files ADD COLUMN duration REAL")
                     logger.info("Mevcut 'ekg_files' tablosuna 'duration' sütunu eklendi.")
                 
-                # Analysis results table (değişiklik yok)
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS analysis_results (
                         id INTEGER PRIMARY KEY, file_id INTEGER NOT NULL, analysis_type TEXT,
@@ -107,8 +103,7 @@ class ConvNormPool(nn.Module):
         self.conv_3 = nn.Conv1d(hidden_size, hidden_size, kernel_size, padding=kernel_size//2)
         self.swish_1, self.swish_2, self.swish_3 = Swish(), Swish(), Swish()
         
-        # --- DÜZELTME: İsim `model.pth` dosyasıyla eşleşecek şekilde değiştirildi ---
-        # `norm_1` -> `normalization_1`
+
         self.normalization_1 = nn.BatchNorm1d(hidden_size)
         self.normalization_2 = nn.BatchNorm1d(hidden_size)
         self.normalization_3 = nn.BatchNorm1d(hidden_size)
@@ -118,7 +113,6 @@ class ConvNormPool(nn.Module):
     
     def forward(self, x):
         conv1 = self.conv_1(x)
-        # --- DÜZELTME: Doğru katman ismi kullanıldı ---
         x = self.normalization_1(conv1)
         x = self.swish_1(x); x = self.dropout(x)
         x = self.conv_2(x)
@@ -209,7 +203,6 @@ class ECGProcessor:
     def apply_filters(self, signal: np.ndarray, fs: int) -> np.ndarray:
         """Apply advanced signal filtering."""
         try:
-            # Remove baseline wander using high-pass filter (0.5 Hz)
             nyquist = fs / 2
             low_freq = 0.5 / nyquist
             high_freq = min(40.0, nyquist - 1) / nyquist
@@ -218,11 +211,9 @@ class ECGProcessor:
                 logger.warning("Invalid filter frequencies, skipping filtering")
                 return signal
             
-            # Bandpass filter (0.5-40 Hz for ECG)
             b, a = butter(4, [low_freq, high_freq], btype='band')
             filtered_signal = filtfilt(b, a, signal)
             
-            # Notch filter for 50Hz power line interference
             if fs > 100:  # Only apply if sampling rate is high enough
                 notch_freq = 50.0 / nyquist
                 if notch_freq < 0.95:  # Only if frequency is valid
@@ -280,10 +271,8 @@ class ECGProcessor:
             except Exception as e:
                 logger.warning(f"Manual R-peak detection failed: {e}")
         
-        # 3. Son çare: basit maksimum bulma
         if len(r_peaks) < 3:
             try:
-                # Sinyali segmentlere böl ve her segmentte maksimum bul
                 segment_length = int(1.5 * fs)  # 1.5 saniye segmentler
                 
                 for i in range(0, len(signal) - segment_length, segment_length):
@@ -348,7 +337,6 @@ class ECGProcessor:
         logger.info(f"Extracted {len(beats)} valid beats (segments > 187 were discarded)")
         return np.array(beats)
     
-    # ===== DÜZELTME: Test_model.py'deki DOĞRU normalizasyon ve işleme yöntemini kullan =====
     def predict_beats(self, beats: np.ndarray, fs_in: int = 200, fs_model: int = 125) -> List[Dict]:
         """Predict beat classifications using the CNN model with correct preprocessing pipeline."""
         if self.model is None:
@@ -462,7 +450,6 @@ class ECGProcessor:
             metrics["heart_rate_bpm"] = float(hr)
             metrics["rr_intervals_ms"] = rr_intervals_ms_filtered.tolist()
             
-            # ===== DÜZELTME: HRV ANALİZİ =====
             if len(rr_intervals_ms_filtered) > 1:
                 hrv_metrics = {}
                 
@@ -598,7 +585,6 @@ class ECGProcessor:
                         if pr_intervals:
                             metrics["pr_interval_ms"] = float(np.mean(pr_intervals))
                 
-                # ===== DÜZELTME: QT interval (Q'dan T sonuna) =====
                 t_offsets = waves.get('ECG_T_Offsets')
                 if q_peaks is not None and t_offsets is not None:
                     q_peaks_clean = np.array([x for x in q_peaks if not np.isnan(x)], dtype=int)
