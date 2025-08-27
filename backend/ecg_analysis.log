@@ -20670,3 +20670,296 @@ TypeError: ECGProcessor.predict_beats() missing 1 required positional argument: 
 2025-08-07 17:08:50,187 - __main__ - INFO - ECG Analysis System shutdown complete
 2025-08-07 17:08:50,188 - __main__ - INFO - Performing cleanup before shutdown...
 2025-08-07 17:08:50,188 - __main__ - INFO - Cleanup completed successfully
+2025-08-07 17:24:33,852 - __main__ - INFO - Veritabanı başarıyla başlatıldı
+2025-08-07 17:24:33,866 - __main__ - INFO - Model loaded successfully: model.pth
+2025-08-07 17:24:33,869 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,869 - __main__ - INFO - Enhanced ECG Analysis System v3.1 - FIXED
+2025-08-07 17:24:33,869 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,870 - __main__ - INFO - BUG FIXES:
+2025-08-07 17:24:33,870 - __main__ - INFO -   - Fixed beat extraction and classification pipeline
+2025-08-07 17:24:33,870 - __main__ - INFO -   - Corrected resampling: 1000Hz input → 125Hz output
+2025-08-07 17:24:33,870 - __main__ - INFO -   - Improved beat validation and error handling
+2025-08-07 17:24:33,870 - __main__ - INFO -   - Enhanced R-peak to beat conversion accuracy
+2025-08-07 17:24:33,870 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,870 - __main__ - INFO - Initializing components...
+2025-08-07 17:24:33,870 - __main__ - INFO - Database: Connected
+2025-08-07 17:24:33,871 - __main__ - INFO - AI Model: Loaded
+2025-08-07 17:24:33,871 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,871 - __main__ - INFO - Available Analysis Features:
+2025-08-07 17:24:33,871 - __main__ - INFO -   - Robust multi-method R-peak detection
+2025-08-07 17:24:33,871 - __main__ - INFO -   - AI-powered beat classification (FIXED)
+2025-08-07 17:24:33,871 - __main__ - INFO -   - Advanced clinical metrics with HRV
+2025-08-07 17:24:33,872 - __main__ - INFO -   - Comprehensive anomaly detection
+2025-08-07 17:24:33,872 - __main__ - INFO -   - 1000Hz→125Hz optimized processing
+2025-08-07 17:24:33,872 - __main__ - INFO -   - Risk assessment and clinical recommendations
+2025-08-07 17:24:33,872 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,872 - __main__ - INFO - Processing Pipeline (CORRECTED):
+2025-08-07 17:24:33,872 - __main__ - INFO -   1. Input: 1000Hz ECG signal
+2025-08-07 17:24:33,872 - __main__ - INFO -   2. Filter & clean at original sampling rate
+2025-08-07 17:24:33,873 - __main__ - INFO -   3. R-peak detection at original rate
+2025-08-07 17:24:33,873 - __main__ - INFO -   4. Clinical metrics calculation
+2025-08-07 17:24:33,873 - __main__ - INFO -   5. Resample to 125Hz for AI model
+2025-08-07 17:24:33,873 - __main__ - INFO -   6. Extract beats around R-peaks
+2025-08-07 17:24:33,873 - __main__ - INFO -   7. AI classification of individual beats
+2025-08-07 17:24:33,873 - __main__ - INFO -   8. Anomaly detection & risk assessment
+2025-08-07 17:24:33,873 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,873 - __main__ - INFO - Key Improvements:
+2025-08-07 17:24:33,874 - __main__ - INFO -   - Beat extraction with proper validation
+2025-08-07 17:24:33,874 - __main__ - INFO -   - Tensor validation before AI prediction
+2025-08-07 17:24:33,874 - __main__ - INFO -   - Improved error handling in beat pipeline
+2025-08-07 17:24:33,874 - __main__ - INFO -   - Better logging for debugging
+2025-08-07 17:24:33,874 - __main__ - INFO -   - Correct sampling rate conversion
+2025-08-07 17:24:33,874 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,874 - __main__ - INFO - API Endpoints Available:
+2025-08-07 17:24:33,874 - __main__ - INFO -   - Patient Management: /api/patients
+2025-08-07 17:24:33,874 - __main__ - INFO -   - File Management: /api/files
+2025-08-07 17:24:33,874 - __main__ - INFO -   - ECG Analysis: /api/analyze
+2025-08-07 17:24:33,874 - __main__ - INFO -   - Statistics: /api/statistics
+2025-08-07 17:24:33,874 - __main__ - INFO -   - System Health: /health
+2025-08-07 17:24:33,874 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,875 - __main__ - INFO - Starting server on http://0.0.0.0:5001
+2025-08-07 17:24:33,875 - __main__ - INFO - Press Ctrl+C to stop the server
+2025-08-07 17:24:33,875 - __main__ - INFO - ============================================================
+2025-08-07 17:24:33,890 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.102:5001
+2025-08-07 17:24:33,890 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-07 17:24:33,891 - werkzeug - INFO -  * Restarting with stat
+2025-08-07 17:24:36,191 - __main__ - INFO - Veritabanı başarıyla başlatıldı
+2025-08-07 17:24:36,205 - __main__ - INFO - Model loaded successfully: model.pth
+2025-08-07 17:24:36,208 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,208 - __main__ - INFO - Enhanced ECG Analysis System v3.1 - FIXED
+2025-08-07 17:24:36,208 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,208 - __main__ - INFO - BUG FIXES:
+2025-08-07 17:24:36,208 - __main__ - INFO -   - Fixed beat extraction and classification pipeline
+2025-08-07 17:24:36,208 - __main__ - INFO -   - Corrected resampling: 1000Hz input → 125Hz output
+2025-08-07 17:24:36,208 - __main__ - INFO -   - Improved beat validation and error handling
+2025-08-07 17:24:36,208 - __main__ - INFO -   - Enhanced R-peak to beat conversion accuracy
+2025-08-07 17:24:36,208 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,208 - __main__ - INFO - Initializing components...
+2025-08-07 17:24:36,208 - __main__ - INFO - Database: Connected
+2025-08-07 17:24:36,208 - __main__ - INFO - AI Model: Loaded
+2025-08-07 17:24:36,209 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,209 - __main__ - INFO - Available Analysis Features:
+2025-08-07 17:24:36,209 - __main__ - INFO -   - Robust multi-method R-peak detection
+2025-08-07 17:24:36,209 - __main__ - INFO -   - AI-powered beat classification (FIXED)
+2025-08-07 17:24:36,209 - __main__ - INFO -   - Advanced clinical metrics with HRV
+2025-08-07 17:24:36,209 - __main__ - INFO -   - Comprehensive anomaly detection
+2025-08-07 17:24:36,209 - __main__ - INFO -   - 1000Hz→125Hz optimized processing
+2025-08-07 17:24:36,209 - __main__ - INFO -   - Risk assessment and clinical recommendations
+2025-08-07 17:24:36,209 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,209 - __main__ - INFO - Processing Pipeline (CORRECTED):
+2025-08-07 17:24:36,210 - __main__ - INFO -   1. Input: 1000Hz ECG signal
+2025-08-07 17:24:36,210 - __main__ - INFO -   2. Filter & clean at original sampling rate
+2025-08-07 17:24:36,210 - __main__ - INFO -   3. R-peak detection at original rate
+2025-08-07 17:24:36,210 - __main__ - INFO -   4. Clinical metrics calculation
+2025-08-07 17:24:36,210 - __main__ - INFO -   5. Resample to 125Hz for AI model
+2025-08-07 17:24:36,210 - __main__ - INFO -   6. Extract beats around R-peaks
+2025-08-07 17:24:36,210 - __main__ - INFO -   7. AI classification of individual beats
+2025-08-07 17:24:36,210 - __main__ - INFO -   8. Anomaly detection & risk assessment
+2025-08-07 17:24:36,210 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,210 - __main__ - INFO - Key Improvements:
+2025-08-07 17:24:36,210 - __main__ - INFO -   - Beat extraction with proper validation
+2025-08-07 17:24:36,210 - __main__ - INFO -   - Tensor validation before AI prediction
+2025-08-07 17:24:36,210 - __main__ - INFO -   - Improved error handling in beat pipeline
+2025-08-07 17:24:36,210 - __main__ - INFO -   - Better logging for debugging
+2025-08-07 17:24:36,211 - __main__ - INFO -   - Correct sampling rate conversion
+2025-08-07 17:24:36,211 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,211 - __main__ - INFO - API Endpoints Available:
+2025-08-07 17:24:36,211 - __main__ - INFO -   - Patient Management: /api/patients
+2025-08-07 17:24:36,211 - __main__ - INFO -   - File Management: /api/files
+2025-08-07 17:24:36,211 - __main__ - INFO -   - ECG Analysis: /api/analyze
+2025-08-07 17:24:36,211 - __main__ - INFO -   - Statistics: /api/statistics
+2025-08-07 17:24:36,211 - __main__ - INFO -   - System Health: /health
+2025-08-07 17:24:36,211 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,211 - __main__ - INFO - Starting server on http://0.0.0.0:5001
+2025-08-07 17:24:36,211 - __main__ - INFO - Press Ctrl+C to stop the server
+2025-08-07 17:24:36,211 - __main__ - INFO - ============================================================
+2025-08-07 17:24:36,217 - werkzeug - WARNING -  * Debugger is active!
+2025-08-07 17:24:36,219 - werkzeug - INFO -  * Debugger PIN: 312-363-474
+2025-08-07 17:24:41,314 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:24:41] "GET /api/patients HTTP/1.1" 200 -
+2025-08-07 17:24:41,319 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:24:41] "GET /api/patients HTTP/1.1" 200 -
+2025-08-07 17:24:42,051 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:24:42] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:24:42,055 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:24:42] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:24:42,073 - __main__ - INFO - Analiz başladı - Uzunluk: 637995, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:24:42,149 - __main__ - INFO - R-peaks detected using neurokit: 3475
+2025-08-07 17:24:42,151 - __main__ - INFO - 3475 R-peak tespit edildi.
+2025-08-07 17:24:57,392 - __main__ - INFO - Extracting beats from 3475 R-peaks using training recipe...
+2025-08-07 17:24:57,397 - __main__ - INFO - Extracted 3474 valid beats (segments > 187 were discarded)
+2025-08-07 17:24:57,398 - __main__ - INFO - Starting prediction for 3474 beats with correct preprocessing pipeline
+2025-08-07 17:24:57,398 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:25:10,921 - __main__ - INFO - Successfully predicted 3474 out of 3474 beats using corrected pipeline
+2025-08-07 17:25:10,926 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:25:11,155 - __main__ - INFO - Analysis results stored for file 17
+2025-08-07 17:25:11,349 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:25:11] "GET /api/analyze/17 HTTP/1.1" 200 -
+2025-08-07 17:28:45,187 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:45] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:28:45,191 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:45] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:28:45,196 - __main__ - INFO - Analiz başladı - Uzunluk: 637995, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:28:45,197 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:45] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:28:45,202 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:45] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:28:45,381 - __main__ - INFO - R-peaks detected using neurokit: 3475
+2025-08-07 17:28:45,383 - __main__ - INFO - 3475 R-peak tespit edildi.
+2025-08-07 17:28:46,904 - __main__ - INFO - Analiz başladı - Uzunluk: 6922, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:28:47,024 - __main__ - INFO - R-peaks detected using neurokit: 43
+2025-08-07 17:28:47,024 - __main__ - INFO - 43 R-peak tespit edildi.
+2025-08-07 17:28:47,738 - __main__ - INFO - Extracting beats from 43 R-peaks using training recipe...
+2025-08-07 17:28:47,742 - __main__ - INFO - Extracted 42 valid beats (segments > 187 were discarded)
+2025-08-07 17:28:47,748 - __main__ - INFO - Starting prediction for 42 beats with correct preprocessing pipeline
+2025-08-07 17:28:47,775 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:28:52,328 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:52] "GET /api/patients HTTP/1.1" 200 -
+2025-08-07 17:28:52,462 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:52] "GET /api/patients HTTP/1.1" 200 -
+2025-08-07 17:28:53,674 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:53] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:28:53,755 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:53] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:28:53,866 - __main__ - INFO - Analiz başladı - Uzunluk: 637995, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:28:53,934 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:53] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:28:54,206 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:28:54] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:28:54,472 - __main__ - INFO - Analiz başladı - Uzunluk: 6922, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:28:54,791 - __main__ - INFO - R-peaks detected using neurokit: 43
+2025-08-07 17:28:54,792 - __main__ - INFO - 43 R-peak tespit edildi.
+2025-08-07 17:28:57,075 - __main__ - INFO - Extracting beats from 43 R-peaks using training recipe...
+2025-08-07 17:28:57,101 - __main__ - INFO - Extracted 42 valid beats (segments > 187 were discarded)
+2025-08-07 17:28:57,103 - __main__ - INFO - Starting prediction for 42 beats with correct preprocessing pipeline
+2025-08-07 17:28:57,105 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:28:57,111 - __main__ - INFO - R-peaks detected using neurokit: 3475
+2025-08-07 17:28:57,210 - __main__ - INFO - 3475 R-peak tespit edildi.
+2025-08-07 17:29:02,991 - __main__ - INFO - Analiz başladı - Uzunluk: 23834, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:29:03,254 - __main__ - INFO - R-peaks detected using neurokit: 145
+2025-08-07 17:29:03,283 - __main__ - INFO - 145 R-peak tespit edildi.
+2025-08-07 17:29:06,146 - __main__ - INFO - Extracting beats from 145 R-peaks using training recipe...
+2025-08-07 17:29:06,161 - __main__ - INFO - Extracted 144 valid beats (segments > 187 were discarded)
+2025-08-07 17:29:06,166 - __main__ - INFO - Starting prediction for 144 beats with correct preprocessing pipeline
+2025-08-07 17:29:06,183 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:29:12,756 - __main__ - INFO - Successfully predicted 42 out of 42 beats using corrected pipeline
+2025-08-07 17:29:12,789 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:29:12,843 - __main__ - INFO - Analysis results stored for file 16
+2025-08-07 17:29:12,858 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:12] "GET /api/analyze/16 HTTP/1.1" 200 -
+2025-08-07 17:29:14,013 - __main__ - INFO - Analiz başladı - Uzunluk: 637995, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:29:15,250 - __main__ - INFO - R-peaks detected using neurokit: 3475
+2025-08-07 17:29:15,276 - __main__ - INFO - 3475 R-peak tespit edildi.
+2025-08-07 17:29:15,584 - __main__ - INFO - Analiz başladı - Uzunluk: 6922, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:29:15,796 - __main__ - INFO - R-peaks detected using neurokit: 43
+2025-08-07 17:29:15,806 - __main__ - INFO - 43 R-peak tespit edildi.
+2025-08-07 17:29:18,091 - __main__ - INFO - Extracting beats from 43 R-peaks using training recipe...
+2025-08-07 17:29:18,097 - __main__ - INFO - Extracted 42 valid beats (segments > 187 were discarded)
+2025-08-07 17:29:18,104 - __main__ - INFO - Starting prediction for 42 beats with correct preprocessing pipeline
+2025-08-07 17:29:18,108 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:29:18,801 - __main__ - INFO - Successfully predicted 42 out of 42 beats using corrected pipeline
+2025-08-07 17:29:18,803 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:29:18,872 - __main__ - INFO - Analysis results stored for file 16
+2025-08-07 17:29:18,881 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:18] "GET /api/analyze/16 HTTP/1.1" 200 -
+2025-08-07 17:29:18,929 - __main__ - INFO - Analiz başladı - Uzunluk: 6922, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:29:19,011 - __main__ - INFO - R-peaks detected using neurokit: 43
+2025-08-07 17:29:19,014 - __main__ - INFO - 43 R-peak tespit edildi.
+2025-08-07 17:29:20,240 - __main__ - INFO - Extracting beats from 43 R-peaks using training recipe...
+2025-08-07 17:29:20,245 - __main__ - INFO - Extracted 42 valid beats (segments > 187 were discarded)
+2025-08-07 17:29:20,253 - __main__ - INFO - Starting prediction for 42 beats with correct preprocessing pipeline
+2025-08-07 17:29:20,259 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:29:21,883 - __main__ - INFO - Analiz başladı - Uzunluk: 6922, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:29:22,191 - __main__ - INFO - R-peaks detected using neurokit: 43
+2025-08-07 17:29:22,195 - __main__ - INFO - 43 R-peak tespit edildi.
+2025-08-07 17:29:25,501 - __main__ - INFO - Extracting beats from 43 R-peaks using training recipe...
+2025-08-07 17:29:25,519 - __main__ - INFO - Extracted 42 valid beats (segments > 187 were discarded)
+2025-08-07 17:29:25,533 - __main__ - INFO - Starting prediction for 42 beats with correct preprocessing pipeline
+2025-08-07 17:29:25,595 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:29:38,593 - __main__ - INFO - Successfully predicted 42 out of 42 beats using corrected pipeline
+2025-08-07 17:29:38,594 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:29:38,608 - __main__ - INFO - Analysis results stored for file 16
+2025-08-07 17:29:38,613 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:38] "GET /api/analyze/16 HTTP/1.1" 200 -
+2025-08-07 17:29:38,620 - __main__ - INFO - Analiz başladı - Uzunluk: 6922, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:29:38,629 - __main__ - INFO - R-peaks detected using neurokit: 43
+2025-08-07 17:29:38,630 - __main__ - INFO - 43 R-peak tespit edildi.
+2025-08-07 17:29:38,974 - __main__ - INFO - Extracting beats from 43 R-peaks using training recipe...
+2025-08-07 17:29:38,975 - __main__ - INFO - Extracted 42 valid beats (segments > 187 were discarded)
+2025-08-07 17:29:38,975 - __main__ - INFO - Starting prediction for 42 beats with correct preprocessing pipeline
+2025-08-07 17:29:38,976 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:29:38,989 - __main__ - INFO - Successfully predicted 42 out of 42 beats using corrected pipeline
+2025-08-07 17:29:38,990 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:29:39,005 - __main__ - INFO - Analysis results stored for file 16
+2025-08-07 17:29:39,010 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:39] "GET /api/analyze/16 HTTP/1.1" 200 -
+2025-08-07 17:29:39,117 - __main__ - INFO - Successfully predicted 42 out of 42 beats using corrected pipeline
+2025-08-07 17:29:39,119 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:29:39,135 - __main__ - INFO - Analysis results stored for file 16
+2025-08-07 17:29:39,139 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:39] "GET /api/analyze/16 HTTP/1.1" 200 -
+2025-08-07 17:29:41,902 - __main__ - INFO - Successfully predicted 42 out of 42 beats using corrected pipeline
+2025-08-07 17:29:41,910 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:29:41,934 - __main__ - INFO - Analysis results stored for file 16
+2025-08-07 17:29:41,948 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:41] "GET /api/analyze/16 HTTP/1.1" 200 -
+2025-08-07 17:29:42,984 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:42] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:29:43,034 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:43] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:29:44,158 - __main__ - INFO - Successfully predicted 144 out of 144 beats using corrected pipeline
+2025-08-07 17:29:44,160 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:29:44,186 - __main__ - INFO - Analysis results stored for file 14
+2025-08-07 17:29:44,201 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:44] "GET /api/analyze/14 HTTP/1.1" 200 -
+2025-08-07 17:29:47,712 - __main__ - INFO - Extracting beats from 3475 R-peaks using training recipe...
+2025-08-07 17:29:47,723 - __main__ - INFO - Extracted 3474 valid beats (segments > 187 were discarded)
+2025-08-07 17:29:47,726 - __main__ - INFO - Starting prediction for 3474 beats with correct preprocessing pipeline
+2025-08-07 17:29:47,726 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:29:49,873 - __main__ - INFO - Extracting beats from 3475 R-peaks using training recipe...
+2025-08-07 17:29:49,884 - __main__ - INFO - Extracted 3474 valid beats (segments > 187 were discarded)
+2025-08-07 17:29:49,886 - __main__ - INFO - Starting prediction for 3474 beats with correct preprocessing pipeline
+2025-08-07 17:29:49,886 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:29:52,131 - __main__ - INFO - Extracting beats from 3475 R-peaks using training recipe...
+2025-08-07 17:29:52,142 - __main__ - INFO - Extracted 3474 valid beats (segments > 187 were discarded)
+2025-08-07 17:29:52,144 - __main__ - INFO - Starting prediction for 3474 beats with correct preprocessing pipeline
+2025-08-07 17:29:52,144 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:29:57,934 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:57] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:29:58,926 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:29:58] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:30:00,615 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:00] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:30:02,449 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:02] "GET /api/patients HTTP/1.1" 200 -
+2025-08-07 17:30:02,455 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:02] "GET /api/patients HTTP/1.1" 200 -
+2025-08-07 17:30:03,858 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:03] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:30:03,863 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:03] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:30:03,868 - __main__ - INFO - Analiz başladı - Uzunluk: 637995, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:30:04,082 - __main__ - INFO - R-peaks detected using neurokit: 3475
+2025-08-07 17:30:04,084 - __main__ - INFO - 3475 R-peak tespit edildi.
+2025-08-07 17:30:06,640 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:06] "OPTIONS /api/files/17 HTTP/1.1" 200 -
+2025-08-07 17:30:06,760 - __main__ - INFO - ECG file 17 deleted successfully
+2025-08-07 17:30:06,760 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:06] "DELETE /api/files/17 HTTP/1.1" 200 -
+2025-08-07 17:30:06,809 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:06] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:30:06,854 - __main__ - INFO - Analiz başladı - Uzunluk: 6922, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:30:06,936 - __main__ - INFO - R-peaks detected using neurokit: 43
+2025-08-07 17:30:06,948 - __main__ - INFO - 43 R-peak tespit edildi.
+2025-08-07 17:30:07,513 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:07] "GET /api/patients HTTP/1.1" 200 -
+2025-08-07 17:30:07,561 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:07] "GET /api/patients HTTP/1.1" 200 -
+2025-08-07 17:30:07,782 - __main__ - INFO - Extracting beats from 43 R-peaks using training recipe...
+2025-08-07 17:30:07,783 - __main__ - INFO - Extracted 42 valid beats (segments > 187 were discarded)
+2025-08-07 17:30:07,785 - __main__ - INFO - Starting prediction for 42 beats with correct preprocessing pipeline
+2025-08-07 17:30:07,791 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:30:08,708 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:08] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:30:08,762 - __main__ - INFO - Analiz başladı - Uzunluk: 6922, Giriş Frekansı: 200Hz, Model Frekansı: 125Hz
+2025-08-07 17:30:08,829 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:08] "GET /api/patients/1/files HTTP/1.1" 200 -
+2025-08-07 17:30:08,834 - __main__ - INFO - R-peaks detected using neurokit: 43
+2025-08-07 17:30:08,843 - __main__ - INFO - 43 R-peak tespit edildi.
+2025-08-07 17:30:10,857 - __main__ - INFO - Extracting beats from 43 R-peaks using training recipe...
+2025-08-07 17:30:10,884 - __main__ - INFO - Extracted 42 valid beats (segments > 187 were discarded)
+2025-08-07 17:30:10,887 - __main__ - INFO - Starting prediction for 42 beats with correct preprocessing pipeline
+2025-08-07 17:30:10,919 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:30:22,083 - __main__ - INFO - Successfully predicted 42 out of 42 beats using corrected pipeline
+2025-08-07 17:30:22,084 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:30:22,104 - __main__ - INFO - Analysis results stored for file 16
+2025-08-07 17:30:22,109 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:22] "GET /api/analyze/16 HTTP/1.1" 200 -
+2025-08-07 17:30:22,148 - __main__ - INFO - Successfully predicted 42 out of 42 beats using corrected pipeline
+2025-08-07 17:30:22,149 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:30:22,162 - __main__ - INFO - Analysis results stored for file 16
+2025-08-07 17:30:22,167 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:22] "GET /api/analyze/16 HTTP/1.1" 200 -
+2025-08-07 17:30:35,609 - __main__ - INFO - Extracting beats from 3475 R-peaks using training recipe...
+2025-08-07 17:30:35,620 - __main__ - INFO - Extracted 3474 valid beats (segments > 187 were discarded)
+2025-08-07 17:30:35,622 - __main__ - INFO - Starting prediction for 3474 beats with correct preprocessing pipeline
+2025-08-07 17:30:35,623 - __main__ - INFO - Resampling from 200Hz to 125Hz and applying Min-Max normalization
+2025-08-07 17:30:45,911 - __main__ - INFO - Successfully predicted 3474 out of 3474 beats using corrected pipeline
+2025-08-07 17:30:45,920 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:30:46,313 - __main__ - INFO - Analysis results stored for file 17
+2025-08-07 17:30:46,657 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:46] "GET /api/analyze/17 HTTP/1.1" 200 -
+2025-08-07 17:30:46,745 - __main__ - INFO - Successfully predicted 3474 out of 3474 beats using corrected pipeline
+2025-08-07 17:30:46,755 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:30:47,158 - __main__ - INFO - Analysis results stored for file 17
+2025-08-07 17:30:47,531 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:47] "GET /api/analyze/17 HTTP/1.1" 200 -
+2025-08-07 17:30:47,837 - __main__ - INFO - Successfully predicted 3474 out of 3474 beats using corrected pipeline
+2025-08-07 17:30:47,847 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:30:48,233 - __main__ - INFO - Analysis results stored for file 17
+2025-08-07 17:30:48,598 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:30:48] "GET /api/analyze/17 HTTP/1.1" 200 -
+2025-08-07 17:31:01,446 - __main__ - INFO - Successfully predicted 3474 out of 3474 beats using corrected pipeline
+2025-08-07 17:31:01,454 - __main__ - INFO - Analiz başarıyla tamamlandı.
+2025-08-07 17:31:01,840 - __main__ - INFO - Analysis results stored for file 17
+2025-08-07 17:31:02,193 - werkzeug - INFO - 127.0.0.1 - - [07/Aug/2025 17:31:02] "GET /api/analyze/17 HTTP/1.1" 200 -
