@@ -43,11 +43,7 @@ function DetailsPage({ patient }) {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const chartRefs = {
-    'Lead I': useRef(null),
-    'Lead II': useRef(null),
-    'Lead III': useRef(null),
-  };
+  const chartRef = useRef(null);
 
   const handleFileSelect = React.useCallback(async (file) => {
     if (!file || isLoading) return;
@@ -336,9 +332,9 @@ function DetailsPage({ patient }) {
       }
 
       // EKG grafiği ekle - html2canvas ile daha iyi kalite
-      if (chartRefs['Lead II'].current && window.html2canvas) {
+      if (chartRef.current && window.html2canvas) {
         try {
-          const canvas = chartRefs['Lead II'].current.canvas;
+          const canvas = chartRef.current.canvas;
           
           if (yPosition > pageHeight - 100) {
             doc.addPage();
@@ -413,33 +409,23 @@ function DetailsPage({ patient }) {
     return annotations;
   };
 
-  // Bir grafik değiştiğinde diğerlerini senkronize et
-  const syncCharts = (sourceChart) => {
-    const { min, max } = sourceChart.scales.x;
-    Object.values(chartRefs).forEach(ref => {
-      const targetChart = ref.current;
-      if (targetChart && targetChart.id !== sourceChart.id) {
-        targetChart.zoomScale('x', { min, max }, 'none');
-      }
-    });
-  };
 
-  const chartOptions = (leadName) => ({
+  const chartOptions = {
     responsive: true, maintainAspectRatio: false, animation: false,
     plugins: {
       legend: { display: false },
-      title: { display: true, text: leadName },
+      title: { display: true, text: `EKG Sinyali: ${activeFile?.file_name || 'Dosya Seçilmedi'}` },
       zoom: { 
-        pan: { enabled: true, mode: 'x', onPanComplete: ({chart}) => syncCharts(chart) }, 
-        zoom: { wheel: { enabled: true }, mode: 'x', onZoomComplete: ({chart}) => syncCharts(chart) } 
+        pan: { enabled: true, mode: 'x' }, 
+        zoom: { wheel: { enabled: true }, mode: 'x' } 
       },
       annotation: { annotations: getAnnotations() },
     },
     scales: { 
-      x: { title: { display: false } }, 
-      y: { title: { display: false } } 
+      x: { title: { display: true, text: 'Örneklem' } }, 
+      y: { title: { display: true, text: 'Genlik (mV)' } } 
     }
-  });
+  };
   
   const chartData = {
     labels: analysisResult?.display_signal?.map((_, i) => i) || [],
@@ -490,28 +476,51 @@ function DetailsPage({ patient }) {
             <input id="patient-file-upload" type="file" style={{display: 'none'}} onChange={handleFileUpload} accept=".csv,.txt,.dat"/>
           </div>
 
-          <div className="chart-group">
-            {['Lead I', 'Lead II', 'Lead III'].map(leadName => (
-              <div key={leadName} className="chart-container-single">
-                {isLoading ? (
-                    <div className="loading-placeholder"><span>Analiz yapılıyor...</span></div>
-                ) : analysisResult ? (
-                    <Line ref={chartRefs[leadName]} options={chartOptions(leadName)} data={chartData} />
-                ) : (
-                    <div className="loading-placeholder"><span>Analiz için bekleniyor...</span></div>
-                )}
+          <div className="chart-container-full" style={{ position: 'relative', height: '400px' }}>
+            {isLoading && <div className="loading-overlay"><span>Analiz yapılıyor...</span></div>}
+            {analysisResult ? (
+              <Line ref={chartRef} options={chartOptions} data={chartData} />
+            ) : !isLoading && (
+              <div className="loading-placeholder" style={{height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                <span>Analiz için bir kayıt seçin.</span>
               </div>
-            ))}
-             <button onClick={() => Object.values(chartRefs).forEach(ref => ref.current?.resetZoom())} className="btn btn-primary btn-sm" style={{marginTop: '1rem'}}>
-                Yakınlaştırmayı Sıfırla
-            </button>
+            )}
           </div>
+          <div className="chart-actions-and-legend">
+            <button onClick={() => chartRef.current?.resetZoom()} className="btn btn-primary btn-sm">
+              Yakınlaştırmayı Sıfırla
+            </button>
+
+            {/* --- YENİ: Anomali Lejantı --- */}
+            <div className="legend-container">
+              <div className="legend-item">
+                <span className="legend-color-box" style={{ backgroundColor: ANOMALY_COLORS['S'].background }}></span>
+                Supraventriküler (S)
+              </div>
+              <div className="legend-item">
+                <span className="legend-color-box" style={{ backgroundColor: ANOMALY_COLORS['V'].background }}></span>
+                Ventriküler (V)
+              </div>
+              <div className="legend-item">
+                <span className="legend-color-box" style={{ backgroundColor: ANOMALY_COLORS['F'].background }}></span>
+                Füzyon (F)
+              </div>
+              <div className="legend-item">
+                <span className="legend-color-box" style={{ backgroundColor: ANOMALY_COLORS['Q'].background }}></span>
+                Bilinmeyen (Q)
+              </div>
+            </div>
+          </div>
+          {/* ------------------------------------------- */}
         </div>
+
+
+        
 
         {/* SAĞ SÜTUN: ANALİZ SONUÇLARI */}
         <div className="layout-right-column">
             <div className="patient-card">
-              <h3>Klinik Analiz</h3>
+              <h3>Klinik Metrikler</h3>
               {isLoading ? <p>Hesaplanıyor...</p> : analysisResult ? (
                 <div>
                   <p><strong>Kalp Hızı:</strong> {clinicalMetrics?.heart_rate_bpm?.toFixed(0) || '--'} bpm</p>

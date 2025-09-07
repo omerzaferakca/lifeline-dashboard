@@ -4,39 +4,24 @@ function AboutPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>LifeLine Hakkında</h1>
-        <p>Modern Medikal Veri Yönetim Sistemi</p>
+        <h1>Hakkında</h1>
       </div>
-      <div>
+      <div className="page-content">
+        <h2>Vizyonumuz</h2>
         <p>
-          LifeLine, EKG (Elektrokardiyogram) verilerini işlemek, analiz etmek ve
-          görselleştirmek için geliştirilmiş bir web tabanlı platformdur.
+          Medikal verilerin dijital ortamda güvenli, hızlı
+          ve doğru bir şekilde yönetilmesini sağlayarak sağlık profesyonellerinin karar
+          süreçlerini desteklemek ve hasta bakım kalitesini artırmaktır. Teknolojiyi insan
+          sağlığı için dönüştürücü bir güç olarak kullanmayı hedefliyoruz.
         </p>
-        <br />
-        <h3>Temel Özellikler:</h3>
-        <ul>
-          <li>
-            <strong>Hasta Yönetimi:</strong> Hasta kayıtlarını kolayca ekleyin,
-            arayın ve yönetin.
-          </li>
-          <li>
-            <strong>EKG Veri Analizi:</strong> Yüklenen ham EKG verilerini işleyerek
-            anomalileri tespit edin.
-          </li>
-          <li>
-            <strong>Yapay Zeka Desteği:</strong> Makine öğrenmesi modelleri ile tanı
-            destek sistemi sağlar. (Geliştirme Aşamasında)
-          </li>
-          <li>
-            <strong>Güvenli ve Esnek:</strong> Gelecekte bir backend altyapısına
-            kolayca entegre edilebilecek şekilde tasarlanmıştır.
-          </li>
-        </ul>
-        <br />
+
+        <h2>Misyonumuz</h2>
         <p>
-          Bu proje, React.js kullanılarak geliştirilmiştir ve medikal
-          profesyonellerin hasta verilerine hızlı ve etkin bir şekilde
-          ulaşmasını hedeflemektedir.
+          EKG gibi kritik biyomedikal verileri analiz eden, kullanıcı dostu ve
+          ölçeklenebilir bir platform sunmaktır. Hasta yönetimi, veri analizi ve yapay zeka
+          destekli tanı sistemlerini bir araya getirerek sağlık çalışanlarına pratik çözümler
+          üretmek temel amacımızdır. Açık, esnek ve entegre edilebilir bir altyapı ile sürekli
+          gelişen sağlık teknolojilerine uyum sağlıyoruz.
         </p>
       </div>
     </div>

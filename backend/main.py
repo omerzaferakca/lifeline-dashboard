@@ -456,15 +456,22 @@ class ECGProcessor:
                 # Time-domain HRV metrics
                 # RMSSD (Root Mean Square of Successive Differences)
                 rr_diff = np.diff(rr_intervals_ms_filtered)
-                
-                # RMSSD aşırı yüksek çıkmasını önlemek için outlier kontrolü
-                rr_diff_filtered = rr_diff[np.abs(rr_diff) <= 500]  # 500ms'den büyük farkları filtrele
-                
-                if len(rr_diff_filtered) > 0:
-                    rmssd = np.sqrt(np.mean(rr_diff_filtered ** 2))
-                    hrv_metrics["rmssd_ms"] = float(rmssd)
+
+                if len(rr_diff) > 0:
+                    # Ham RMSSD
+                    rmssd_raw = np.sqrt(np.mean(rr_diff ** 2))
+                    hrv_metrics["rmssd_ms"] = float(rmssd_raw)
+                    
+                    # Filtreli RMSSD (opsiyonel)
+                    rr_diff_filt = rr_diff[np.abs(rr_diff) <= 500]
+                    if len(rr_diff_filt) > 0:
+                        rmssd_filt = np.sqrt(np.mean(rr_diff_filt ** 2))
+                        hrv_metrics["rmssd_filtered_ms"] = float(rmssd_filt)
+                    else:
+                        hrv_metrics["rmssd_filtered_ms"] = None
                 else:
-                    hrv_metrics["rmssd_ms"] = 0.0
+                    hrv_metrics["rmssd_ms"] = None
+                    hrv_metrics["rmssd_filtered_ms"] = None
                 
                 # SDNN (Standard Deviation of NN intervals)
                 sdnn = np.std(rr_intervals_ms_filtered)
@@ -947,7 +954,7 @@ class ECGProcessor:
             beats = self.extract_beats(resampled_signal, r_peaks_resampled)
             predictions = self.predict_beats(beats)
             
-            # --- EKSİK OLAN VE HATAYI ÇÖZEN ADIM ---
+
             # Adım 6: Anomali Tespiti
             # Bu fonksiyon, `generate_ai_summary` için gereken 'anomalies' objesini oluşturur.
             anomalies = self.detect_anomalies(predictions, clinical_metrics)
