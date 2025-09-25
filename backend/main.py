@@ -53,7 +53,9 @@ class DatabaseManager:
                     CREATE TABLE IF NOT EXISTS patients (
                         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, tc TEXT UNIQUE NOT NULL,
                         age INTEGER, gender TEXT, phone TEXT, medications TEXT,
-                        complaints TEXT, created_at DATETIME, updated_at DATETIME
+                        complaints TEXT, created_at DATETIME, updated_at DATETIME,
+                        device_start_date DATETIME,
+                        device_end_date DATETIME
                     )''')
                 
                 cursor.execute('''
@@ -456,22 +458,15 @@ class ECGProcessor:
                 # Time-domain HRV metrics
                 # RMSSD (Root Mean Square of Successive Differences)
                 rr_diff = np.diff(rr_intervals_ms_filtered)
-
-                if len(rr_diff) > 0:
-                    # Ham RMSSD
-                    rmssd_raw = np.sqrt(np.mean(rr_diff ** 2))
-                    hrv_metrics["rmssd_ms"] = float(rmssd_raw)
-                    
-                    # Filtreli RMSSD (opsiyonel)
-                    rr_diff_filt = rr_diff[np.abs(rr_diff) <= 500]
-                    if len(rr_diff_filt) > 0:
-                        rmssd_filt = np.sqrt(np.mean(rr_diff_filt ** 2))
-                        hrv_metrics["rmssd_filtered_ms"] = float(rmssd_filt)
-                    else:
-                        hrv_metrics["rmssd_filtered_ms"] = None
+                
+                # RMSSD aşırı yüksek çıkmasını önlemek için outlier kontrolü
+                rr_diff_filtered = rr_diff[np.abs(rr_diff) <= 500]  # 500ms'den büyük farkları filtrele
+                
+                if len(rr_diff_filtered) > 0:
+                    rmssd = np.sqrt(np.mean(rr_diff_filtered ** 2))
+                    hrv_metrics["rmssd_ms"] = float(rmssd)
                 else:
-                    hrv_metrics["rmssd_ms"] = None
-                    hrv_metrics["rmssd_filtered_ms"] = None
+                    hrv_metrics["rmssd_ms"] = 0.0
                 
                 # SDNN (Standard Deviation of NN intervals)
                 sdnn = np.std(rr_intervals_ms_filtered)
@@ -954,7 +949,7 @@ class ECGProcessor:
             beats = self.extract_beats(resampled_signal, r_peaks_resampled)
             predictions = self.predict_beats(beats)
             
-
+            # --- EKSİK OLAN VE HATAYI ÇÖZEN ADIM ---
             # Adım 6: Anomali Tespiti
             # Bu fonksiyon, `generate_ai_summary` için gereken 'anomalies' objesini oluşturur.
             anomalies = self.detect_anomalies(predictions, clinical_metrics)
@@ -1038,36 +1033,70 @@ def add_patient():
     """Add new patient."""
     try:
         data = request.get_json()
-        
-        # Validate required fields
+
+        # 1) Zorunlu alan kontrolü
         required_fields = ['name', 'tc']
         for field in required_fields:
-            if field not in data or not data[field].strip():
+            if field not in data or not str(data[field]).strip():
                 return jsonify({"error": f"Missing required field: {field}"}), 400
-        
+
+        # 2) Yardımcılar
+        def norm_date(key):
+            v = data.get(key)
+            if not v:
+                return None
+            try:
+                # "Z" varsa ISO-8601'e çevir
+                return datetime.fromisoformat(str(v).replace('Z', '+00:00')).isoformat()
+            except Exception:
+                # parse edilemezse olduğu gibi string kaydet (ya da None dönebilirsin)
+                return str(v)
+
+        def as_list(key):
+            v = data.get(key, [])
+            if v is None:
+                return []
+            if isinstance(v, list):
+                return [str(x) for x in v]
+            # tek string geldiyse tek elemanlı liste yap
+            return [str(v)]
+
+        # 3) Alanları hazırla
+        name        = data['name'].strip()
+        tc          = data['tc'].strip()
+        age         = data.get('age')  # int ya da None
+        gender      = (data.get('gender') or '').strip()
+        phone       = (data.get('phone') or '').strip()
+        medications = json.dumps(as_list('medications'))  # DB'ye JSON string
+        complaints  = (data.get('complaints') or '').strip()
+
+        device_start_date = norm_date('device_start_date')
+        device_end_date   = norm_date('device_end_date')
+        created_at        = datetime.now().isoformat()
+
+        # 4) Kayıt
         with db_manager.get_connection() as conn:
             conn.execute(
-                '''INSERT INTO patients 
-                   (name, tc, age, gender, phone, medications, complaints) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                '''
+                INSERT INTO patients
+                  (name, tc, age, gender, phone, medications, complaints,
+                   device_start_date, device_end_date, created_at)
+                VALUES
+                  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
                 (
-                    data['name'].strip(),
-                    data['tc'].strip(),
-                    data.get('age'),
-                    data.get('gender', '').strip(),
-                    data.get('phone', '').strip(),
-                    json.dumps(data.get('medications', [])),
-                    data.get('complaints', '').strip()
+                    name, tc, age, gender, phone, medications, complaints,
+                 device_start_date, device_end_date, created_at
                 )
             )
             conn.commit()
-            
+
         return jsonify({"message": "Patient added successfully"}), 201
-        
+
     except sqlite3.IntegrityError:
         return jsonify({"error": "Patient with this TC already exists"}), 409
     except Exception as e:
-        logger.error(f"Error adding patient: {e}")
+        logger.error(f"Error adding patient: {e}", exc_info=True)
         return jsonify({"error": "Failed to add patient"}), 500
 
 @app.route('/api/patients/<int:patient_id>', methods=['GET'])

@@ -7,6 +7,9 @@ function AboutPage() {
         <h1>Hakkında</h1>
       </div>
       <div className="page-content">
+        <p><strong>Proje Numarası:</strong> 7248027</p>
+        <p><strong>Proje Adı:</strong> Üç Elektrot Kullanılarak EKG/Nabız Verilerini Ölçebilen ve Analiz Edebilen Ergonomik Holter Cihazının Geliştirilmesi</p>
+        <p><strong>Kuruluş Adı:</strong> Positive Mühendislik ARGE ve Yazılım Teknolojileri Ticaret Limited Şirketi</p>
         <h2>Vizyonumuz</h2>
         <p>
           Medikal verilerin dijital ortamda güvenli, hızlı
@@ -23,6 +26,10 @@ function AboutPage() {
           üretmek temel amacımızdır. Açık, esnek ve entegre edilebilir bir altyapı ile sürekli
           gelişen sağlık teknolojilerine uyum sağlıyoruz.
         </p>
+
+        <hr />
+
+        
       </div>
     </div>
   );
