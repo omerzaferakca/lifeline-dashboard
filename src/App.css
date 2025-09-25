@@ -5,14 +5,21 @@
 /* ------------------------- */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+:root, * { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+* { margin: 0; padding: 0; }
+
 :root {
   /* Renk Yoğunluğu: Koyu -> Açık */
-  --primary-dark: #649DAD;
-  --primary-main: #66C6BA;
-  --primary-light: #A4E5D9;
-  --primary-lightest: #C8F4DE;
-  --sidebar-bg: #36565f;
-  --sidebar-hover: #374151;
+  --primary-dark: #0e7490;      /* teal-600 */
+  --primary-main: #14b8a6;      /* teal-500 */
+  --primary-light: #99f6e4;     /* teal-200 */
+  --primary-lightest: #ccfbf1;  /* teal-100 */
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --info: #0ea5e9;             /* sky-500 */
+  --sidebar-bg: #0f3f4c;        /* deep teal-navy */
+  --sidebar-hover: #134e4a;     /* teal-800 */
   --background-color: #f3f4f6;
   --surface-color: #ffffff;
   --text-color: #1f2937;
@@ -30,7 +37,24 @@ body {
   font-family: var(--font-family);
   background-color: var(--background-color);
   color: var(--text-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Üst Header */
+.App-header {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  background: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.App-header h1 { font-size: 1.375rem; color: var(--primary-dark); letter-spacing: 0.2px; }
 
 /* ------------------------- */
 /* --- 2. ANA YAPI (LAYOUT) --- */
@@ -41,6 +65,8 @@ body {
   padding: 2.5rem;
   overflow-y: auto;
   transition: margin-left 0.3s ease-in-out;
+  background: radial-gradient(60% 80% at 0% 0%, color-mix(in srgb, var(--primary-main) 18%, transparent) 0%, transparent 60%),
+              radial-gradient(50% 70% at 100% 20%, color-mix(in srgb, var(--primary-dark) 14%, transparent) 0%, transparent 60%);
 }
 
 /* ------------------------- */
@@ -171,14 +197,43 @@ body {
 .page-header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); }
 .page-header h1 { margin: 0; font-size: 2.2rem; font-weight: 600; }
 .page-header p { margin: 0.5rem 0 0; color: var(--text-color-light); font-size: 1.1rem; }
-.patient-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; }
+.page-header::after { content: ""; display: block; height: 3px; width: 60px; background: var(--primary-main); margin-top: 1rem; border-radius: 999px; opacity: 0.6; }
+.patient-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1.5rem; box-shadow: var(--box-shadow); }
+.patient-card h3 { margin: 0 0 1rem 0; font-size: 1.15rem; font-weight: 600; color: var(--text-color); }
 .details-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: start; }
 .layout-left-column, .layout-right-column { display: flex; flex-direction: column; gap: 1.5rem; }
 .ekg-file-list { list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto; }
 .ekg-file-list li { padding: 0.75rem 1rem; border-radius: var(--border-radius); margin-bottom: 0.5rem; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; transition: var(--transition); }
-.ekg-file-list li:hover { background-color: #f1f5f9; }
+.ekg-file-list li:hover { background-color: color-mix(in srgb, var(--primary-lightest) 30%, white); }
 .ekg-file-list li.active-file { background-color: var(--primary-dark); color: white; border-color: var(--primary-dark); }
 .ekg-file-list li.active-file span { color: #e0e0e0; }
+
+/* Chart containers */
+.chart-container-full, .chart-container-single {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 0.75rem;
+}
+.chart-container { 
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 0.5rem;
+  height: 360px;
+}
+.chart-container.ecg-paper {
+  background:
+    linear-gradient(transparent 24px, rgba(244, 63, 94, 0.06) 24px),
+    linear-gradient(90deg, transparent 24px, rgba(244, 63, 94, 0.06) 24px),
+    linear-gradient(transparent 4px, rgba(244, 63, 94, 0.12) 4px),
+    linear-gradient(90deg, transparent 4px, rgba(244, 63, 94, 0.12) 4px);
+  background-size: 25px 25px, 25px 25px, 5px 5px, 5px 5px;
+  background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+}
+.loading-placeholder { color: var(--text-color-light); }
 
 /* ------------------------- */
 /* --- 6. MODAL STİLLERİ --- */
@@ -272,8 +327,8 @@ body {
 }
 
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent);
+  border-color: var(--primary-main);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-main) 20%, transparent);
   outline: none;
   background-color: var(--surface-color);
 }
@@ -316,7 +371,7 @@ body {
 }
 .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
 .btn-primary { color: #fff; background-color: var(--primary-dark); border-color: var(--primary-dark); }
-.btn-primary:hover { background-color: var(--primary-main); border-color: var(--primary-main); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+.btn-primary:hover { background-color: var(--primary-main); border-color: var(--primary-main); transform: translateY(-2px); box-shadow: 0 8px 16px rgba(20, 184, 166, 0.18); }
 .btn-danger { color: #fff; background-color: var(--danger-color); border-color: var(--danger-color); }
 .btn-danger:hover { background-color: #be123c; border-color: #9f1239; }
 .btn-secondary { color: var(--text-color); background-color: #e5e7eb; border-color: #e5e7eb; }
@@ -326,9 +381,22 @@ body {
 button:disabled { cursor: not-allowed !important; opacity: 0.65; transform: none !important; box-shadow: none !important; }
 .loading-overlay { position: absolute; inset: 0; background-color: rgba(255, 255, 255, 0.8); display: flex; justify-content: center; align-items: center; z-index: 10; border-radius: var(--border-radius); }
 .loading-overlay span { font-size: 1.2rem; font-weight: 500; color: var(--text-color); }
-.status-düşük { font-weight: bold; color: #16a34a; }
-.status-orta { font-weight: bold; color: #f59e0b; }
-.status-yüksek, .status-kritik { font-weight: bold; color: var(--danger-color); }
+.status-düşük { font-weight: 600; color: var(--success); }
+.status-orta { font-weight: 600; color: var(--warning); }
+.status-yüksek, .status-kritik { font-weight: 600; color: var(--danger-color); }
+
+/* Dashboard */
+.dashboard { display: flex; flex-direction: column; gap: 1.5rem; }
+.info-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.info-box { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 1rem 1.25rem; box-shadow: var(--box-shadow); position: relative; overflow: hidden; }
+.info-box::before { content: ""; position: absolute; inset: 0; width: 6px; background: var(--primary-main); opacity: 0.7; }
+.info-title { margin: 0 0 0.35rem 0; font-size: 0.95rem; color: var(--text-color-light); padding-left: 0.75rem; }
+.info-value { margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--text-color); padding-left: 0.75rem; }
+.info-unit { font-size: 0.9rem; font-weight: 600; color: var(--text-color-light); }
+
+.upload-section { display: flex; align-items: center; gap: 1rem; }
+.upload-button { display: inline-block; padding: 0.6rem 1rem; background: var(--primary-main); color: #fff; border-radius: var(--border-radius); cursor: pointer; transition: var(--transition); box-shadow: 0 6px 14px rgba(20,184,166,0.22); }
+.upload-button:hover { background: var(--primary-dark); transform: translateY(-1px); }
 
 .chart-actions-and-legend {
   display: flex;
@@ -361,4 +429,52 @@ button:disabled { cursor: not-allowed !important; opacity: 0.65; transform: none
   height: 15px;
   border-radius: 4px;
   border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* ------------------------- */
+/* --- 8. GENEL YARDIMCI STİLLER VE UX --- */
+/* ------------------------- */
+/* Typography spacing for Details (right column) and About pages */
+.layout-right-column p, .layout-right-column li { line-height: 1.75; }
+.layout-right-column p { margin-bottom: 0.6rem; }
+.layout-right-column ul { margin: 0.5rem 0 0.5rem 1.25rem; padding-left: 1rem; }
+.layout-right-column ul li { margin-bottom: 0.4rem; }
+
+.page-content p, .page-content li { line-height: 1.85; }
+.page-content p { margin-bottom: 0.8rem; }
+.page-content ul { margin: 0.5rem 0 0.5rem 1.25rem; padding-left: 1rem; }
+.page-content h2 { margin-top: 1rem; margin-bottom: 0.6rem; }
+
+/* Scrollbar (WebKit) */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+*::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+*::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Linkler */
+ a { color: var(--primary-main); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Page content spacing */
+.page-content { display: flex; flex-direction: column; gap: 1.25rem; }
+
+/* Badges */
+.badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+.badge-info { background: color-mix(in srgb, var(--info) 15%, white); color: var(--info); }
+.badge-success { background: color-mix(in srgb, var(--success) 15%, white); color: var(--success); }
+.badge-warning { background: color-mix(in srgb, var(--warning) 15%, white); color: var(--warning); }
+.badge-danger { background: color-mix(in srgb, var(--danger-color) 15%, white); color: var(--danger-color); }
+
+/* Responsive layout for details */
+@media (max-width: 1200px) {
+  .details-layout { grid-template-columns: 1fr; }
+  .main-content.sidebar-open { margin-left: 80px; }
+}
+
+@media (max-width: 768px) {
+  .main-content { padding: 1rem; }
+  .page { padding: 1.25rem; }
+  .page-header h1 { font-size: 1.6rem; }
+  .patient-list { gap: 1rem; }
+  .chart-actions-and-legend { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
 }

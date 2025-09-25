@@ -434,33 +434,61 @@ class ECGProcessor:
             if len(r_peaks) < 2:
                 return metrics
             
-            # RR intervallerini hesapla
+            # RR intervallerini hesapla (ms)
             rr_intervals = np.diff(r_peaks) / fs  # saniye cinsinden
             rr_intervals_ms = rr_intervals * 1000  # milisaniye cinsinden
-            
-            # FİZYOLOJİK SINIR KONTROLÜ - Anormal RR intervallerini filtrele
-            # Normal RR: 300-2000 ms (30-200 BPM arası)
+
+            # 1) Fizyolojik sınırlar: 300-2000 ms (30-200 BPM)
             valid_rr_mask = (rr_intervals_ms >= 300) & (rr_intervals_ms <= 2000)
             rr_intervals_ms_filtered = rr_intervals_ms[valid_rr_mask]
-            
+
             if len(rr_intervals_ms_filtered) == 0:
                 logger.warning("Hiçbir geçerli RR interval bulunamadı")
                 return metrics
-            
-            # Kalp hızı hesaplama (filtrelenmiş RR'lar ile)
-            hr = 60.0 / np.mean(rr_intervals_ms_filtered / 1000)  # BPM
+
+            # 2) NN (Normal-to-Normal) filtreleme: artefakt/ektopik aralıkları çıkar
+            #    Kural: medyanın %20'sinden (>20%) fazla sapan aralıkları çıkar (veya >150ms)
+            median_rr = float(np.median(rr_intervals_ms_filtered))
+            deviation = np.abs(rr_intervals_ms_filtered - median_rr)
+            threshold_ms = max(0.2 * median_rr, 150.0)  # daha katı eşik
+            nn_mask = deviation <= threshold_ms
+            nn_intervals_ms = rr_intervals_ms_filtered[nn_mask]
+
+            # Eğer çok az NN kalırsa, daha gevşek eşik uygula (medyanın %30'u veya 200ms)
+            if len(nn_intervals_ms) < max(3, int(0.5 * len(rr_intervals_ms_filtered))):
+                threshold_ms_relaxed = max(0.3 * median_rr, 200.0)
+                nn_mask_relaxed = deviation <= threshold_ms_relaxed
+                nn_intervals_ms = rr_intervals_ms_filtered[nn_mask_relaxed]
+
+            # Eğer hala yetersizse, NN filtresini devre dışı bırak (yalnızca fizyolojik filtre)
+            used_nn_filter = True
+            if len(nn_intervals_ms) < 2:
+                nn_intervals_ms = rr_intervals_ms_filtered.copy()
+                used_nn_filter = False
+
+            removed_count = int(len(rr_intervals_ms_filtered) - len(nn_intervals_ms))
+            if removed_count > 0:
+                logger.info(f"NN filtreleme ile {removed_count}/{len(rr_intervals_ms_filtered)} RR aralığı çıkarıldı")
+            else:
+                logger.info("NN filtreleme ile RR aralığı çıkarılmadı")
+
+            # Kalp hızı hesaplama (NN aralıkları ile)
+            hr = 60.0 / np.mean(nn_intervals_ms / 1000.0)  # BPM
             metrics["heart_rate_bpm"] = float(hr)
+            # Şeffaflık için hem ham (fizyolojik filtreli) hem NN listelerini döndür
             metrics["rr_intervals_ms"] = rr_intervals_ms_filtered.tolist()
+            metrics["nn_intervals_ms"] = nn_intervals_ms.tolist()
+            metrics["rr_intervals_source"] = "nn_filtered" if used_nn_filter else "physiological_only"
             
-            if len(rr_intervals_ms_filtered) > 1:
+            if len(nn_intervals_ms) > 1:
                 hrv_metrics = {}
                 
                 # Time-domain HRV metrics
                 # RMSSD (Root Mean Square of Successive Differences)
-                rr_diff = np.diff(rr_intervals_ms_filtered)
+                rr_diff = np.diff(nn_intervals_ms)
                 
                 # RMSSD aşırı yüksek çıkmasını önlemek için outlier kontrolü
-                rr_diff_filtered = rr_diff[np.abs(rr_diff) <= 500]  # 500ms'den büyük farkları filtrele
+                rr_diff_filtered = rr_diff[np.abs(rr_diff) <= 200]  # 200ms'den büyük farkları filtrele (daha korumacı)
                 
                 if len(rr_diff_filtered) > 0:
                     rmssd = np.sqrt(np.mean(rr_diff_filtered ** 2))
@@ -469,7 +497,7 @@ class ECGProcessor:
                     hrv_metrics["rmssd_ms"] = 0.0
                 
                 # SDNN (Standard Deviation of NN intervals)
-                sdnn = np.std(rr_intervals_ms_filtered)
+                sdnn = np.std(nn_intervals_ms)
                 hrv_metrics["sdnn_ms"] = float(sdnn)
                 
                 # pNN50 (Percentage of successive RR intervals that differ by more than 50ms)
@@ -488,23 +516,23 @@ class ECGProcessor:
                     hrv_metrics["sdsd_ms"] = 0.0
                 
                 # Triangular Index
-                if len(rr_intervals_ms_filtered) > 5:
-                    hist, _ = np.histogram(rr_intervals_ms_filtered, bins=min(20, len(rr_intervals_ms_filtered)//2))
+                if len(nn_intervals_ms) > 5:
+                    hist, _ = np.histogram(nn_intervals_ms, bins=min(20, len(nn_intervals_ms)//2))
                     max_hist = np.max(hist)
-                    tri_index = len(rr_intervals_ms_filtered) / max_hist if max_hist > 0 else 0
+                    tri_index = len(nn_intervals_ms) / max_hist if max_hist > 0 else 0
                     hrv_metrics["triangular_index"] = float(tri_index)
                 else:
                     hrv_metrics["triangular_index"] = 0.0
                 
                 # Frequency-domain HRV (geliştirilmiş)
-                if len(rr_intervals_ms_filtered) > 10:
+                if len(nn_intervals_ms) > 10:
                     try:
                         # RR serisi için interpolasyon (4Hz sampling)
-                        time_stamps = np.cumsum(rr_intervals_ms_filtered / 1000)
+                        time_stamps = np.cumsum(nn_intervals_ms / 1000.0)
                         interp_time = np.arange(0, time_stamps[-1], 0.25)  # 4Hz
                         
                         if len(time_stamps) > 1 and len(interp_time) > 1:
-                            rr_interp = np.interp(interp_time, time_stamps[:-1], rr_intervals_ms_filtered[:-1])
+                            rr_interp = np.interp(interp_time, time_stamps[:-1], nn_intervals_ms[:-1])
                             
                             # Detrend
                             rr_detrend = rr_interp - np.mean(rr_interp)

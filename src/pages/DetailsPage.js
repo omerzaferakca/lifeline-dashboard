@@ -62,9 +62,41 @@ function DetailsPage({ patient }) {
     'Lead III': useRef(null),
   };
 
+  // ---- ANALIZ CACHE (localStorage) ----
+  const CACHE_VERSION = 'v1';
+  const makeCacheKey = (file) => `lifeline:analysis:${CACHE_VERSION}:${file.id}`;
+  const loadCachedAnalysis = (file) => {
+    try {
+      const raw = localStorage.getItem(makeCacheKey(file));
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      // Dosya değişmişse (tarih farklı) önbelleği kullanma
+      if (cached?.uploaded_at !== file.uploaded_at) return null;
+      return cached.result || null;
+    } catch { return null; }
+  };
+  const saveCachedAnalysis = (file, result) => {
+    try {
+      const payload = { uploaded_at: file.uploaded_at, result, cached_at: new Date().toISOString() };
+      localStorage.setItem(makeCacheKey(file), JSON.stringify(payload));
+    } catch {
+      // Olası quota hatalarını sessizce yutuyoruz
+    }
+  };
+  const clearCachedAnalysis = (file) => {
+    try { localStorage.removeItem(makeCacheKey(file)); } catch { /* ignore */ }
+  };
+
   const handleFileSelect = React.useCallback(async (file) => {
     if (!file || isLoading) return;
     setActiveFile(file);
+    // 1) Önbelleğe bak
+    const cached = loadCachedAnalysis(file);
+    if (cached) {
+      setAnalysisResult(cached);
+      return;
+    }
+    // 2) Yoksa analiz et ve önbelleğe yaz
     setIsLoading(true);
     setAnalysisResult(null);
     try {
@@ -72,12 +104,31 @@ function DetailsPage({ patient }) {
       const result = await response.json();
       if (result.success) {
         setAnalysisResult(result);
+        saveCachedAnalysis(file, result);
       } else {
         alert(`Analiz hatası: ${result.error}`);
       }
     } catch (error) { console.error("Analiz hatası:", error); } 
     finally { setIsLoading(false); }
   }, [isLoading]);
+
+  // Kullanıcı isterse önbelleği baypas ederek yeniden analiz edebilsin
+  const forceReanalyze = async () => {
+    if (!activeFile || isLoading) return;
+    setIsLoading(true);
+    setAnalysisResult(null);
+    try {
+      const response = await fetch(`${API_URL}/analyze/${activeFile.id}`);
+      const result = await response.json();
+      if (result.success) {
+        setAnalysisResult(result);
+        saveCachedAnalysis(activeFile, result);
+      } else {
+        alert(`Analiz hatası: ${result.error}`);
+      }
+    } catch (error) { console.error('Yeniden analiz hatası:', error); }
+    finally { setIsLoading(false); }
+  };
 
   const fetchFiles = React.useCallback(async (patientId) => {
     if (!patientId) return;
@@ -381,9 +432,9 @@ function DetailsPage({ patient }) {
     if (!analysisResult?.beat_predictions || !analysisResult?.r_peaks) return {};
     const annotations = {};
     const beatWidth = (analysisResult.display_signal.length / analysisResult.r_peaks.length) * 0.7;
-    analysisResult.beat_predictions
-      .filter(beat => !beat.class_name.startsWith("Normal"))
-      .forEach((beat, index) => {
+    const MAX_ANNOTATIONS = 300; // performans için üst sınır
+    const anomalousBeats = analysisResult.beat_predictions.filter(beat => !beat.class_name.startsWith("Normal"));
+    anomalousBeats.slice(0, MAX_ANNOTATIONS).forEach((beat, index) => {
         const rPeakIndex = analysisResult.r_peaks[beat.beat_id];
         if (rPeakIndex === undefined) return;
         const char_code = beat.class_name.charAt(beat.class_name.length - 2);
@@ -431,7 +482,12 @@ function DetailsPage({ patient }) {
   const yRange = getYRange();
 
   const chartOptions = (leadName) => ({
-    responsive: true, maintainAspectRatio: false, animation: false,
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    normalized: true,
+    interaction: { mode: 'nearest', intersect: false, axis: 'x' },
+    elements: { point: { radius: 0 }, line: { borderWidth: 1 } },
     plugins: {
       legend: { display: false },
       title: { display: true, text: leadName },
@@ -452,11 +508,16 @@ function DetailsPage({ patient }) {
     }
   });
   
+  const displaySignal = analysisResult?.display_signal
+    ? (Array.isArray(analysisResult.display_signal) ? analysisResult.display_signal : Array.from(analysisResult.display_signal))
+    : [];
+
   const chartData = {
-    labels: analysisResult?.display_signal?.map((_, i) => i) || [],
+    labels: displaySignal.map((_, i) => i),
     datasets: [{
-      label: 'EKG', data: analysisResult?.display_signal || [],
+      label: 'EKG', data: displaySignal,
       borderColor: '#dc3545', borderWidth: 1, pointRadius: 0,
+      spanGaps: true,
     }],
   };
   
@@ -501,6 +562,16 @@ function DetailsPage({ patient }) {
             <input id="patient-file-upload" type="file" style={{display: 'none'}} onChange={handleFileUpload} accept=".csv,.txt,.dat"/>
           </div>
 
+          {/* Grafik Aksiyonları (üstte) */}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <button onClick={forceReanalyze} className="btn btn-primary btn-sm" disabled={!activeFile || isLoading} title="Bu kayıt için analiz yap veya güncelle">
+              Analiz Et
+            </button>
+            <button onClick={() => { Object.values(chartRefs).forEach(ref => ref.current?.resetZoom()); }} className="btn btn-secondary btn-sm">
+              Yakınlaştırmayı Sıfırla
+            </button>
+          </div>
+
           {/* 3 büyük grafik */}
           {['Lead I', 'Lead II', 'Lead III'].map(leadName => (
             <div key={leadName} className="chart-container-full" style={{ position: 'relative', height: '400px', marginBottom: '1rem' }}>
@@ -516,9 +587,6 @@ function DetailsPage({ patient }) {
           ))}
 
           <div className="chart-actions-and-legend">
-            <button onClick={() => { Object.values(chartRefs).forEach(ref => ref.current?.resetZoom()); }} className="btn btn-primary btn-sm">
-              Yakınlaştırmayı Sıfırla
-            </button>
             <div className="legend-container">
               <div className="legend-item">
                 <span className="legend-color-box" style={{ backgroundColor: ANOMALY_COLORS['S'].background }}></span>
@@ -594,7 +662,7 @@ function DetailsPage({ patient }) {
                   padding: '12px 20px',
                   fontSize: '16px',
                   fontWeight: 'bold',
-                  backgroundColor: (analysisResult && !isGeneratingPDF && !isLoading && analysisResult?.clinical_metrics) ? '#649DAD' : '#6c757d',
+                  backgroundColor: (analysisResult && !isGeneratingPDF && !isLoading && analysisResult?.clinical_metrics) ? 'var(--primary-dark)' : '#6c757d',
                   border: 'none',
                   borderRadius: '6px',
                   color: 'white',

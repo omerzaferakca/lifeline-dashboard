@@ -9,6 +9,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Decimation,
 } from 'chart.js';
 
 ChartJS.register(
@@ -18,40 +19,47 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Decimation
 );
 
 const options = {
   responsive: true,
   maintainAspectRatio: false,
+  animation: false,
+  normalized: true,
+  interaction: { mode: 'nearest', intersect: false, axis: 'x' },
+  elements: { point: { radius: 0 }, line: { borderWidth: 2 } },
   plugins: {
     legend: {
       display: false,
     },
     title: {
       display: true,
-      text: 'EKG Verisi',
-      color: '#ffffff',
+      text: 'EKG',
+      color: '#1f2937',
       font: {
-        size: 18
+        size: 18,
+        weight: '600'
       }
     },
+    decimation: { enabled: true, algorithm: 'lttb', samples: 2000, threshold: 3000 },
   },
   scales: {
     x: {
       ticks: {
-        color: '#dddddd',
+        color: '#6b7280',
       },
       grid: {
-        color: 'rgba(255, 255, 255, 0.1)',
+        color: 'rgba(31, 41, 55, 0.08)',
       }
     },
     y: {
       ticks: {
-        color: '#dddddd',
+        color: '#6b7280',
       },
       grid: {
-        color: 'rgba(255, 255, 255, 0.1)',
+        color: 'rgba(31, 41, 55, 0.08)',
       },
       suggestedMin: -1,
       suggestedMax: 1
@@ -67,17 +75,19 @@ const data = {
     {
       label: 'EKG Sinyali',
       data: sampleData,
-      borderColor: 'rgb(255, 99, 132)',
-      backgroundColor: 'rgba(255, 99, 132, 0.5)',
+      borderColor: '#0e7490',
+      backgroundColor: 'rgba(20, 184, 166, 0.15)',
       borderWidth: 2,
-      pointRadius: 1,
+      pointRadius: 0,
+      fill: false,
+      tension: 0.25,
     },
   ],
 };
 
 function ChartComponent() {
   return (
-    <div className="chart-container">
+    <div className="chart-container ecg-paper">
       <Line options={options} data={data} />
     </div>
   );
