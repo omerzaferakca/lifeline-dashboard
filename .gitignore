@@ -21,5 +21,69 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Backend - Private/Sensitive Files
 backend/database.db
 backend/ecg_analysis.log
+backend/model.pth
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+
+# Firebase - Private Keys and Config
+.env
+.env.local
+.env.production
+firebase-debug.log
+.firebase/
+.firebaserc
+firebase.json
+firestore.indexes.json
+firestore.rules
+storage.rules
+
+# VS Code Settings
+.vscode/
+*.code-workspace
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+temp/
+tmp/
+.tmp/
+
+# Patient Data - Sensitive Medical Information
+uploads/
+processed/
+patient-data/
+medical-records/
+
+# ML Models and Training Data
+*.pth
+*.pkl
+*.h5
+training-data/
+models/
+
+# Analysis Results - Potentially Sensitive
+analysis-results/
+reports/

@@ -127,8 +127,6 @@ class ConvNormPool(nn.Module):
 
 
 class EnhancedCNN(nn.Module):
-    """Enhanced CNN model for ECG classification."""
-    
     def __init__(self, input_size: int = 1, hid_size: int = 128, kernel_size: int = 5, 
                  num_classes: int = 5, dropout_rate: float = 0.1):
         super().__init__()
@@ -203,7 +201,6 @@ class ECGProcessor:
             self.model = None
     
     def apply_filters(self, signal: np.ndarray, fs: int) -> np.ndarray:
-        """Apply advanced signal filtering."""
         try:
             nyquist = fs / 2
             low_freq = 0.5 / nyquist
@@ -216,9 +213,9 @@ class ECGProcessor:
             b, a = butter(4, [low_freq, high_freq], btype='band')
             filtered_signal = filtfilt(b, a, signal)
             
-            if fs > 100:  # Only apply if sampling rate is high enough
+            if fs > 100:  
                 notch_freq = 50.0 / nyquist
-                if notch_freq < 0.95:  # Only if frequency is valid
+                if notch_freq < 0.95: 
                     b_notch, a_notch = butter(2, [notch_freq - 0.01, notch_freq + 0.01], btype='bandstop')
                     filtered_signal = filtfilt(b_notch, a_notch, filtered_signal)
             
@@ -229,10 +226,8 @@ class ECGProcessor:
             return signal
     
     def robust_r_peak_detection(self, signal: np.ndarray, fs: int) -> List[int]:
-        """Çoklu yöntem kullanarak güçlü R-peak tespiti."""
         r_peaks = []
         
-        # 1. NeuroKit2 yöntemleri
         neurokit_methods = ['neurokit', 'pantompkins1985', 'hamilton2002']
         
         for method in neurokit_methods:
@@ -240,7 +235,7 @@ class ECGProcessor:
                 _, rpeaks_info = nk.ecg_peaks(signal, sampling_rate=fs, method=method)
                 peaks = rpeaks_info.get('ECG_R_Peaks', [])
                 
-                if len(peaks) > 2:  # En az 3 peak gerekli
+                if len(peaks) > 2:  
                     r_peaks = list(peaks)
                     logger.info(f"R-peaks detected using {method}: {len(r_peaks)}")
                     break
@@ -938,7 +933,7 @@ class ECGProcessor:
             "anomalies": anomalies
         }
     
-    def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 200, fs_out: int = 125) -> Dict:
+    def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 500, fs_out: int = 125) -> Dict:
         """
         Ana EKG işleme akışı.
         DÜZELTME: Eksik 'anomalies' argümanı eklendi.
@@ -1238,7 +1233,7 @@ def upload_file(patient_id):
     """Bir hasta için yeni bir EKG dosyası yükler."""
     try:
         data = request.get_json()
-        
+
         # Frontend'den gelen anahtar isimleriyle eşleştir
         file_name = data.get('name')
         ekg_data_list = data.get('data')
@@ -1247,10 +1242,31 @@ def upload_file(patient_id):
 
         if not ekg_data_list or not file_name:
             return jsonify({"error": "Eksik alanlar: 'data' ve 'name' gerekli."}), 400
-        
-        ekg_data_np = np.array(ekg_data_list, dtype=np.float32)
+
+        # Check if the data is in the new format (pulse, ekg, date)
+        parsed_ekg_data = []
+        for entry in ekg_data_list:
+            if isinstance(entry, str):  # Eğer entry bir string ise
+                if not entry.strip():  # Boş satırları atla
+                    continue
+                if ',' in entry:  # Yeni format (pulse, ekg, date)
+                    try:
+                        parts = entry.split(',')
+                        if len(parts) == 3:
+                            _, ekg_value, _ = parts  # Sadece EKG değerini al
+                            parsed_ekg_data.append(float(ekg_value.strip()))
+                        else:
+                            return jsonify({"error": "Geçersiz veri formatı: Beklenen 'pulse, ekg, date'."}), 400
+                    except ValueError:
+                        return jsonify({"error": "Geçersiz EKG değeri."}), 400
+            elif isinstance(entry, (int, float)):  # Eğer entry bir sayı ise
+                parsed_ekg_data.append(float(entry))  # Direkt ekle
+            else:
+                return jsonify({"error": "Geçersiz veri tipi."}), 400
+
+        ekg_data_np = np.array(parsed_ekg_data, dtype=np.float32)
         duration = len(ekg_data_np) / sampling_rate
-        
+
         with db_manager.get_connection() as conn:
             conn.execute(
                 '''INSERT INTO ekg_files 
@@ -1259,10 +1275,10 @@ def upload_file(patient_id):
                 (patient_id, file_name.strip(), uploaded_at, sampling_rate, duration, ekg_data_np.tobytes())
             )
             conn.commit()
-            
+
         logger.info(f"Hasta {patient_id} için dosya yüklendi: {file_name}")
         return jsonify({"message": "Dosya başarıyla yüklendi"}), 201
-        
+
     except Exception as e:
         logger.error(f"Dosya yükleme hatası (Hasta ID: {patient_id}): {e}", exc_info=True)
         return jsonify({"error": "Sunucu hatası nedeniyle dosya yüklenemedi."}), 500

@@ -1,80 +1,124 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 
+// Components ve Pages import'ları
 import Sidebar from './components/Sidebar';
-import PatientModal from './components/PatientModal';
 import HomePage from './pages/HomePage';
 import DetailsPage from './pages/DetailsPage';
 import AboutPage from './pages/AboutPage';
+import LoginPage from './pages/LoginPage';
+import PatientModal from './components/PatientModal';
+import ConfirmModal from './components/ConfirmModal';
+import NotificationModal from './components/NotificationModal';
 
-const API_URL = 'http://127.0.0.1:5001/api';
+// Contexts
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
+// Firebase services
+import { deletePatient } from './firebase/patientService';
+
+// Ana App Layout Component'i
 const AppLayout = () => {
-  const [patients, setPatients] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [patientToEdit, setPatientToEdit] = useState(null);
+  const [refreshPatients, setRefreshPatients] = useState(0); // Hasta listesini yenilemek için
   
-  // --- YENİ: Sidebar'ın açık/kapalı durumunu tutan state ---
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Confirm modal states
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    type: 'danger'
+  });
+  
+  // Notification modal states
+  const [notification, setNotification] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'success'
+  });
 
-  const fetchPatients = async () => {
-    try {
-      const response = await fetch(`${API_URL}/patients`);
-      const data = await response.json();
-      setPatients(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Hastalar getirilirken hata oluştu:", error);
-    }
+  const showNotification = (title, message, type = 'success') => {
+    setNotification({
+      isOpen: true,
+      title,
+      message,
+      type
+    });
   };
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+  const closeNotification = () => {
+    setNotification(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const showConfirm = (title, message, onConfirm, type = 'danger') => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      type
+    });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+  };
 
   const handleOpenModal = (patient = null) => {
     setPatientToEdit(patient);
     setIsModalOpen(true);
   };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setPatientToEdit(null);
   };
 
-  const handleSavePatient = async (formData) => {
-    const isEditing = !!formData.id;
-    const url = isEditing ? `${API_URL}/patients/${formData.id}` : `${API_URL}/patients`;
-    const method = isEditing ? 'PUT' : 'POST';
-    try {
-      const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
-      if (response.ok) {
-        await fetchPatients();
-        handleCloseModal();
-      } else {
-        alert("Hasta kaydedilirken bir hata oluştu.");
-      }
-    } catch (error) {
-      console.error("Hasta kaydetme hatası:", error);
-    }
+  const handlePatientSaved = () => {
+    // Hasta kaydedildiğinde listeyi yenile
+    setRefreshPatients(prev => prev + 1);
+    showNotification(
+      'Başarılı!',
+      'Hasta bilgileri başarıyla kaydedildi.',
+      'success'
+    );
   };
 
-  const handleDeletePatient = async (patientId) => {
-    if (window.confirm("Bu hastayı ve tüm kayıtlarını kalıcı olarak silmek istediğinizden emin misiniz?")) {
-      try {
-        const response = await fetch(`${API_URL}/patients/${patientId}`, { method: 'DELETE' });
-        if (response.ok) {
-          await fetchPatients();
+  const handleDeletePatient = (patientId) => {
+    showConfirm(
+      'Hastayı Sil',
+      'Bu hastayı ve tüm kayıtlarını kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.',
+      async () => {
+        try {
+          await deletePatient(patientId);
+          // Eğer silinen hasta seçiliyse, seçimi kaldır
           if (selectedPatientId === patientId) {
             setSelectedPatientId(null);
           }
-        } else {
-          alert("Hasta silinirken bir hata oluştu.");
+          // HomePage'i yenile
+          setRefreshPatients(prev => prev + 1);
+          showNotification(
+            'Başarılı!',
+            'Hasta ve tüm kayıtları başarıyla silindi.',
+            'success'
+          );
+        } catch (error) {
+          console.error('Hasta silinirken hata:', error);
+          showNotification(
+            'Hata!',
+            'Hasta silinirken bir hata oluştu. Lütfen tekrar deneyin.',
+            'error'
+          );
         }
-      } catch (error) {
-        console.error("Hasta silme hatası:", error);
-      }
-    }
+      },
+      'danger'
+    );
   };
 
   return (
@@ -82,27 +126,33 @@ const AppLayout = () => {
       <Sidebar 
         onHomeClick={() => setSelectedPatientId(null)} 
         isOpen={isSidebarOpen}
-        setIsOpen={setIsSidebarOpen} // State'i değiştirme fonksiyonunu Sidebar'a gönderiyoruz
+        setIsOpen={setIsSidebarOpen}
       />
       
-      {/* --- YENİ: Sidebar durumuna göre ana içeriğe sınıf ekle --- */}
       <main className={`main-content ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <Routes>
           <Route
             path="/"
             element={
               <HomePage
-                patients={patients}
                 onSelectPatient={(patient) => setSelectedPatientId(patient.id)}
                 onAddPatient={() => handleOpenModal()}
                 onEditPatient={handleOpenModal}
                 onDeletePatient={handleDeletePatient}
+                selectedPatientId={selectedPatientId}
+                refreshTrigger={refreshPatients}
               />
             }
           />
           <Route
             path="/detaylar"
-            element={<DetailsPage patient={patients.find(p => p.id === selectedPatientId)} />}
+            element={
+              <DetailsPage 
+                selectedPatientId={selectedPatientId}
+                showConfirm={showConfirm}
+                showNotification={showNotification}
+              />
+            }
           />
           <Route path="/hakkinda" element={<AboutPage />} />
         </Routes>
@@ -111,12 +161,61 @@ const AppLayout = () => {
       <PatientModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        onSave={handleSavePatient}
+        onSave={handlePatientSaved}
         patient={patientToEdit}
+        showConfirm={showConfirm}
+        showNotification={showNotification}
+      />
+      
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={closeConfirm}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+        confirmText="Evet, Sil"
+        cancelText="İptal"
+      />
+      
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={closeNotification}
+        title={notification.title}
+        message={notification.message}
+        type={notification.type}
+        autoClose={4000}
       />
     </div>
   );
 };
 
-const App = () => (<Router><AppLayout /></Router>);
+// Auth ile korumalı ana uygulama
+const ProtectedApp = () => {
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="spinner"></div>
+        <p>Yükleniyor...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <LoginPage />;
+  }
+
+  return <AppLayout />;
+};
+
+const App = () => (
+  <AuthProvider>
+    <Router>
+      <ProtectedApp />
+    </Router>
+  </AuthProvider>
+);
+
 export default App;
