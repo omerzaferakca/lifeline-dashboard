@@ -1654,7 +1654,7 @@ a:hover { text-decoration: underline; }
 /* Login Container */
 .login-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f3f4c 0%, #14b8a6 50%, #99f6e4 100%);
+  background: white;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1708,14 +1708,14 @@ a:hover { text-decoration: underline; }
 .login-logo-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--primary-main), var(--primary-dark));
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   font-size: 24px;
-  box-shadow: 0 8px 25px rgba(20, 184, 166, 0.3);
+  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.3);
 }
 
 .login-title {
@@ -1768,6 +1768,8 @@ a:hover { text-decoration: underline; }
 
 .login-tab:hover:not(.active) {
   color: var(--text-color);
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
 /* Error Message */

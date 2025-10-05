@@ -1,6 +1,9 @@
 import sqlite3
 import json
 import logging
+import os
+import io
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
@@ -12,7 +15,17 @@ import torch.nn.functional as F
 from scipy.signal import resample, butter, filtfilt, find_peaks
 import neurokit2 as nk
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
+
+# Firebase Admin SDK (for Storage access)
+try:
+    import firebase_admin
+    from firebase_admin import credentials as fb_credentials
+    from firebase_admin import storage as fb_storage
+except Exception:
+    firebase_admin = None
+    fb_credentials = None
+    fb_storage = None
 
 # --- Logging Configuration ---
 logging.basicConfig(
@@ -127,6 +140,8 @@ class ConvNormPool(nn.Module):
 
 
 class EnhancedCNN(nn.Module):
+    """Enhanced CNN model for ECG classification."""
+    
     def __init__(self, input_size: int = 1, hid_size: int = 128, kernel_size: int = 5, 
                  num_classes: int = 5, dropout_rate: float = 0.1):
         super().__init__()
@@ -201,6 +216,7 @@ class ECGProcessor:
             self.model = None
     
     def apply_filters(self, signal: np.ndarray, fs: int) -> np.ndarray:
+        """Apply advanced signal filtering."""
         try:
             nyquist = fs / 2
             low_freq = 0.5 / nyquist
@@ -213,9 +229,9 @@ class ECGProcessor:
             b, a = butter(4, [low_freq, high_freq], btype='band')
             filtered_signal = filtfilt(b, a, signal)
             
-            if fs > 100:  
+            if fs > 100:  # Only apply if sampling rate is high enough
                 notch_freq = 50.0 / nyquist
-                if notch_freq < 0.95: 
+                if notch_freq < 0.95:  # Only if frequency is valid
                     b_notch, a_notch = butter(2, [notch_freq - 0.01, notch_freq + 0.01], btype='bandstop')
                     filtered_signal = filtfilt(b_notch, a_notch, filtered_signal)
             
@@ -226,8 +242,10 @@ class ECGProcessor:
             return signal
     
     def robust_r_peak_detection(self, signal: np.ndarray, fs: int) -> List[int]:
+        """Çoklu yöntem kullanarak güçlü R-peak tespiti."""
         r_peaks = []
         
+        # 1. NeuroKit2 yöntemleri
         neurokit_methods = ['neurokit', 'pantompkins1985', 'hamilton2002']
         
         for method in neurokit_methods:
@@ -235,7 +253,7 @@ class ECGProcessor:
                 _, rpeaks_info = nk.ecg_peaks(signal, sampling_rate=fs, method=method)
                 peaks = rpeaks_info.get('ECG_R_Peaks', [])
                 
-                if len(peaks) > 2:  
+                if len(peaks) > 2:  # En az 3 peak gerekli
                     r_peaks = list(peaks)
                     logger.info(f"R-peaks detected using {method}: {len(r_peaks)}")
                     break
@@ -933,7 +951,7 @@ class ECGProcessor:
             "anomalies": anomalies
         }
     
-    def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 500, fs_out: int = 125) -> Dict:
+    def process_ecg_record(self, raw_ecg: np.ndarray, fs_in: int = 200, fs_out: int = 125) -> Dict:
         """
         Ana EKG işleme akışı.
         DÜZELTME: Eksik 'anomalies' argümanı eklendi.
@@ -1006,16 +1024,136 @@ class ECGProcessor:
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Allow CORS for API routes and analysis endpoints
+CORS(app, resources={r"/api/*": {"origins": "*"}, r"/analyze": {"origins": "*"}, r"/health": {"origins": "*"}})
 
 # Initialize components
 db_manager = DatabaseManager()
 ecg_processor = None
 
 try:
-    ecg_processor = ECGProcessor(model_path="model.pth")
+    # Ensure model path resolves relative to backend directory
+    backend_dir = Path(__file__).parent
+    model_file = str((backend_dir / "model.pth").resolve())
+    ecg_processor = ECGProcessor(model_path=model_file)
 except Exception as e:
     logger.critical(f"ECG Processor initialization failed: {e}")
+
+# --------------------- Firebase Initialization ---------------------
+FIREBASE_BUCKET_NAME = os.environ.get("FIREBASE_STORAGE_BUCKET") or "positive-lifeline-web.appspot.com"
+
+def init_firebase_if_needed():
+    """Initialize Firebase Admin SDK if available and not initialized yet."""
+    if firebase_admin is None:
+        logger.warning("firebase_admin is not installed; /analyze via Firebase Storage will be unavailable")
+        return False
+    try:
+        if not firebase_admin._apps:
+            cred = None
+            # Prefer explicit service account file if provided
+            sa_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+            if sa_path and os.path.exists(sa_path):
+                cred = fb_credentials.Certificate(sa_path)
+                firebase_admin.initialize_app(cred, {
+                    'storageBucket': FIREBASE_BUCKET_NAME
+                })
+            else:
+                # Try application default credentials (useful on GCP/Cloud Run)
+                firebase_admin.initialize_app(options={'storageBucket': FIREBASE_BUCKET_NAME})
+            logger.info(f"Firebase initialized with bucket: {FIREBASE_BUCKET_NAME}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
+        return False
+
+def _normalize_bucket_name(bucket_name: str) -> str:
+    """Normalize Firebase bucket names to canonical appspot.com when needed."""
+    if not bucket_name:
+        return bucket_name
+    # Map *.firebasestorage.app -> *.appspot.com
+    if bucket_name.endswith('.firebasestorage.app'):
+        return bucket_name.replace('.firebasestorage.app', '.appspot.com')
+    return bucket_name
+
+def _parse_storage_input(path_or_uri: str) -> Tuple[Optional[str], str]:
+    """Accept file_path as a relative path, gs://bucket/object, or URL; return (bucket, object_path)."""
+    s = path_or_uri.strip()
+    # gs://bucket/object
+    if s.startswith('gs://'):
+        rest = s[len('gs://'):]  # bucket/obj
+        parts = rest.split('/', 1)
+        bucket = parts[0]
+        obj = parts[1] if len(parts) > 1 else ''
+        return _normalize_bucket_name(bucket), obj.lstrip('/')
+    # HTTP(S) URL patterns (best-effort)
+    if s.startswith('http://') or s.startswith('https://'):
+        # Try to extract bucket and object from /v0/b/<bucket>/o/<object>
+        m = re.search(r"/b/([^/]+)/o/([^?]+)", s)
+        if m:
+            bucket = _normalize_bucket_name(m.group(1))
+            # URL-encoded path (replace %2F with /)
+            obj = m.group(2).replace('%2F', '/').lstrip('/')
+            return bucket, obj
+        # Fallback: treat as unsupported direct URL
+        raise ValueError("Direct HTTP URL not supported; provide gs:// or storagePath")
+    # Relative path within default bucket
+    return None, s.lstrip('/')
+
+def download_storage_text(file_path: str) -> str:
+    """Download a text file from Firebase Storage and return its contents as UTF-8 string."""
+    if not init_firebase_if_needed():
+        raise RuntimeError("Firebase is not initialized on server")
+    try:
+        bucket_name, object_path = _parse_storage_input(file_path)
+        if bucket_name:
+            bucket = fb_storage.bucket(bucket_name)
+        else:
+            bucket = fb_storage.bucket() if FIREBASE_BUCKET_NAME else fb_storage.bucket()
+        blob = bucket.blob(object_path)
+        if not blob.exists():
+            raise FileNotFoundError(f"Storage path not found: {bucket.name}/{object_path}")
+        data = blob.download_as_bytes()
+        return data.decode('utf-8', errors='replace')
+    except Exception as e:
+        logger.error(f"Failed to download from Storage: {file_path} | {e}")
+        raise
+
+def parse_ekg_text(text: str) -> Tuple[np.ndarray, Optional[int]]:
+    """Parse ECG numeric samples from CSV/TXT content. Tries to extract optional sampling rate."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    fs_detected: Optional[int] = None
+    samples: List[float] = []
+
+    # Detect sampling rate in header if present
+    if lines:
+        header = lines[0].lower()
+        m = re.search(r"(fs|sampling[_ ]?rate)\D+(\d{2,5})", header)
+        if m:
+            try:
+                fs_detected = int(m.group(2))
+            except Exception:
+                fs_detected = None
+
+    for ln in lines:
+        # Skip obvious headers
+        if any(key in ln.lower() for key in ["time", "timestamp", "sample", "fs", "sampling"]):
+            # If it's a CSV header line, continue
+            # But still try to parse if it's numeric-only
+            pass
+        # Split by common delimiters and pick first numeric column
+        parts = re.split(r"[;,\t\s]+|,", ln)
+        val = None
+        for p in parts:
+            try:
+                v = float(p)
+                val = v
+                break
+            except Exception:
+                continue
+        if val is not None and np.isfinite(val):
+            samples.append(float(val))
+
+    return np.asarray(samples, dtype=np.float32), fs_detected
 
 # Error handlers
 @app.errorhandler(404)
@@ -1029,6 +1167,7 @@ def internal_error(error):
 
 # Health check endpoint
 @app.route('/health', methods=['GET'])
+@cross_origin()
 def health_check():
     """Health check endpoint."""
     return jsonify({
@@ -1036,6 +1175,61 @@ def health_check():
         "timestamp": datetime.now().isoformat(),
         "ecg_processor_available": ecg_processor is not None
     })
+
+# Hybrid Cloud Run-compatible analysis endpoint using Firebase Storage path
+@app.route('/analyze', methods=['POST'])
+@cross_origin()
+def analyze_by_storage_path():
+    """Analyze ECG file given its Firebase Storage path.
+
+    Expected JSON: { "file_path": "ekg/<doctorId>/<patientId>/<filename>" }
+    Optional: { "sampling_rate": 200 }
+    """
+    try:
+        if ecg_processor is None:
+            return jsonify({"success": False, "error": "Analysis service not available"}), 503
+
+        payload = request.get_json(silent=True) or {}
+        file_path = payload.get('file_path')
+        sampling_rate = payload.get('sampling_rate')  # Optional override
+        if not file_path or not isinstance(file_path, str):
+            return jsonify({"success": False, "error": "Missing required 'file_path'"}), 400
+
+        logger.info(f"Starting Storage analysis for: {file_path}")
+
+        # Download and parse ECG
+        text = download_storage_text(file_path)
+        signal, fs_detected = parse_ekg_text(text)
+        if signal is None or len(signal) < 10:
+            return jsonify({"success": False, "error": "EKG file is empty or invalid"}), 400
+
+        fs_in = None
+        if isinstance(sampling_rate, (int, float)) and sampling_rate > 0:
+            fs_in = int(sampling_rate)
+        elif fs_detected:
+            fs_in = int(fs_detected)
+        else:
+            # Conservative default when unknown
+            fs_in = 200
+
+        logger.info(f"Parsed ECG samples: {len(signal)} | fs_in={fs_in}")
+
+        result = ecg_processor.process_ecg_record(signal, fs_in=fs_in, fs_out=125)
+
+        # Wrap to match frontend expectation
+        response = {
+            "success": bool(result.get("success")),
+            "analysis_result": result,
+            "requested_file_path": file_path,
+            "fs_in": fs_in
+        }
+        return jsonify(response)
+
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "error": str(e)}), 404
+    except Exception as e:
+        logger.error(f"/analyze error for {request.data}: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Analysis failed"}), 500
 
 # Patient management endpoints
 @app.route('/api/patients', methods=['GET'])
@@ -1233,7 +1427,7 @@ def upload_file(patient_id):
     """Bir hasta için yeni bir EKG dosyası yükler."""
     try:
         data = request.get_json()
-
+        
         # Frontend'den gelen anahtar isimleriyle eşleştir
         file_name = data.get('name')
         ekg_data_list = data.get('data')
@@ -1242,31 +1436,10 @@ def upload_file(patient_id):
 
         if not ekg_data_list or not file_name:
             return jsonify({"error": "Eksik alanlar: 'data' ve 'name' gerekli."}), 400
-
-        # Check if the data is in the new format (pulse, ekg, date)
-        parsed_ekg_data = []
-        for entry in ekg_data_list:
-            if isinstance(entry, str):  # Eğer entry bir string ise
-                if not entry.strip():  # Boş satırları atla
-                    continue
-                if ',' in entry:  # Yeni format (pulse, ekg, date)
-                    try:
-                        parts = entry.split(',')
-                        if len(parts) == 3:
-                            _, ekg_value, _ = parts  # Sadece EKG değerini al
-                            parsed_ekg_data.append(float(ekg_value.strip()))
-                        else:
-                            return jsonify({"error": "Geçersiz veri formatı: Beklenen 'pulse, ekg, date'."}), 400
-                    except ValueError:
-                        return jsonify({"error": "Geçersiz EKG değeri."}), 400
-            elif isinstance(entry, (int, float)):  # Eğer entry bir sayı ise
-                parsed_ekg_data.append(float(entry))  # Direkt ekle
-            else:
-                return jsonify({"error": "Geçersiz veri tipi."}), 400
-
-        ekg_data_np = np.array(parsed_ekg_data, dtype=np.float32)
+        
+        ekg_data_np = np.array(ekg_data_list, dtype=np.float32)
         duration = len(ekg_data_np) / sampling_rate
-
+        
         with db_manager.get_connection() as conn:
             conn.execute(
                 '''INSERT INTO ekg_files 
@@ -1275,10 +1448,10 @@ def upload_file(patient_id):
                 (patient_id, file_name.strip(), uploaded_at, sampling_rate, duration, ekg_data_np.tobytes())
             )
             conn.commit()
-
+            
         logger.info(f"Hasta {patient_id} için dosya yüklendi: {file_name}")
         return jsonify({"message": "Dosya başarıyla yüklendi"}), 201
-
+        
     except Exception as e:
         logger.error(f"Dosya yükleme hatası (Hasta ID: {patient_id}): {e}", exc_info=True)
         return jsonify({"error": "Sunucu hatası nedeniyle dosya yüklenemedi."}), 500
@@ -1553,7 +1726,8 @@ if __name__ == '__main__':
     logger.info("=" * 60)
     
     try:
-        app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)
+        # Disable reloader for stable background runs; keep threaded server on port 5001
+        app.run(debug=False, use_reloader=False, host='0.0.0.0', port=5001, threaded=True)
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:

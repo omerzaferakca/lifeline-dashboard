@@ -3,7 +3,7 @@ import InfoBox from './InfoBox';
 import ChartComponent from './ChartComponent';
 import PatientModal from './PatientModal';
 import { patientService } from '../firebase/patientService';
-import { ekgService } from '../firebase/ekgService';
+import { hybridEkgService } from '../firebase/hybridEkgService';
 import { useAuth } from '../contexts/AuthContext';
 
 function Dashboard() {
@@ -88,35 +88,39 @@ function Dashboard() {
       console.log('EKG dosyası yükleniyor:', file.name);
       
       // Dosya formatını kontrol et
-      ekgService.validateEkgFile(file);
+      hybridEkgService.validateEkgFile(file);
       
-      // EKG verisini parse et
-      const parsedData = await ekgService.parseEkgData(file);
-      console.log('EKG verisi parse edildi:', parsedData);
+      console.log('Starting hybrid EKG analysis...');
       
-      // Basit analiz yap (kalp atış hızı hesapla)
-      const analysisResult = performBasicEkgAnalysis(parsedData.data);
-      
-      // Firebase Storage'a yükle
-      const result = await ekgService.uploadEkgFile(
+      // Hybrid backend ile yükle ve analiz et
+      const result = await hybridEkgService.uploadEkgFileWithAnalysis(
         file, 
         selectedPatientForEkg.id, 
         currentUser.uid,
-        analysisResult
+        (progress) => {
+          console.log('Upload progress:', Math.floor(progress * 100) + '%');
+        }
       );
       
-      console.log('EKG dosyası başarıyla yüklendi:', result);
+      console.log('Hybrid EKG analysis completed:', result);
       
-      // Başarı mesajı
-      alert(`EKG dosyası başarıyla yüklendi!\nKalp atış hızı: ${analysisResult.heartRate} BPM\nDurum: ${analysisResult.anomalyDetected ? 'Anormal' : 'Normal'}`);
+      if (result.success && result.analysisResult) {
+        const heartRate = result.analysisResult.clinical_metrics?.heart_rate_bpm || 0;
+        const riskLevel = result.analysisResult.ai_summary?.risk_level || 'bilinmiyor';
+        
+        // İstatistikleri güncelle
+        setHeartRate(heartRate);
+        setAnomalyStatus(riskLevel === 'yüksek' ? 'ANORMAL' : 'NORMAL');
+        
+        // Başarı mesajı
+        alert(`EKG dosyası başarıyla analiz edildi!\nKalp Hızı: ${heartRate} BPM\nRisk Seviyesi: ${riskLevel.toUpperCase()}`);
+      } else {
+        alert('EKG dosyası yüklendi ancak analiz tamamlanamadı.');
+      }
       
       // Form'u temizle
       event.target.value = '';
       setSelectedPatientForEkg(null);
-      
-      // İstatistikleri güncelle
-      setHeartRate(analysisResult.heartRate);
-      setAnomalyStatus(analysisResult.anomalyDetected ? 'ANORMAL' : 'NORMAL');
       
     } catch (error) {
       console.error('EKG dosyası yüklenirken hata:', error);

@@ -7,15 +7,12 @@ import {
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 
-// Firebase services
-import { getPatientById } from '../firebase/patientService';
-import { getPatientEkgFiles, uploadEkgFile, deleteEkgFile } from '../firebase/ekgService';
-import { useAuth } from '../contexts/AuthContext';
-
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
   Title, Tooltip, Legend, annotationPlugin, zoomPlugin
 );
+
+const API_URL = 'http://127.0.0.1:5001/api';
 
 const ANOMALY_COLORS = {
     'V': { background: 'rgba(255, 99, 132, 0.3)', border: 'rgba(255, 99, 132, 0.5)' },
@@ -52,9 +49,7 @@ const safeText = (str) => {
   .replaceAll('Ç','C').replaceAll('ç','c');
 };
 
-function DetailsPage({ selectedPatientId, showConfirm, showNotification }) {
-  const { currentUser } = useAuth();
-  const [patient, setPatient] = useState(null);
+function DetailsPage({ patient }) {
   const [files, setFiles] = useState([]);
   const [activeFile, setActiveFile] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -66,65 +61,6 @@ function DetailsPage({ selectedPatientId, showConfirm, showNotification }) {
     'Lead II': useRef(null),
     'Lead III': useRef(null),
   };
-
-  // Firebase'den hasta bilgilerini getir
-  useEffect(() => {
-    const loadPatient = async () => {
-      if (!selectedPatientId || !currentUser) {
-        setPatient(null);
-        setFiles([]);
-        setActiveFile(null);
-        return;
-      }
-
-      try {
-        console.log('Loading patient:', selectedPatientId);
-        const patientData = await getPatientById(selectedPatientId);
-        setPatient(patientData);
-      } catch (error) {
-        console.error('Patient load error:', error);
-        setPatient(null);
-        setFiles([]);
-        setActiveFile(null);
-      }
-    };
-
-    loadPatient();
-  }, [selectedPatientId, currentUser]);
-
-  // Firebase'den EKG dosyalarını getir
-  useEffect(() => {
-    const loadEkgFiles = async () => {
-      if (!patient) {
-        setFiles([]);
-        setActiveFile(null);
-        setAnalysisResult(null);
-        return;
-      }
-
-      try {
-        console.log('Loading EKG files for patient:', patient.id);
-        const ekgFiles = await getPatientEkgFiles(patient.id);
-        setFiles(ekgFiles || []);
-        
-        // İlk dosyayı otomatik seç ve analiz et
-        if (ekgFiles && ekgFiles.length > 0) {
-          const firstFile = ekgFiles[0];
-          setActiveFile(firstFile);
-          
-          // İlk dosyayı otomatik analiz et
-          setTimeout(() => {
-            handleFileSelect(firstFile);
-          }, 100);
-        }
-      } catch (error) {
-        console.error('EKG files load error:', error);
-        setFiles([]);
-      }
-    };
-
-    loadEkgFiles();
-  }, [patient]);
 
   // ---- ANALIZ CACHE (localStorage) ----
   const CACHE_VERSION = 'v1';
@@ -154,405 +90,112 @@ function DetailsPage({ selectedPatientId, showConfirm, showNotification }) {
   const handleFileSelect = React.useCallback(async (file) => {
     if (!file || isLoading) return;
     setActiveFile(file);
-    setIsLoading(true);
-    
-    try {
-      console.log('EKG dosyası seçildi:', file.fileName || file.file_name);
-      
-      // Firebase'den EKG verisini oku ve işle
-      if (file.downloadURL) {
-        const response = await fetch(file.downloadURL);
-        const fileText = await response.text();
-        
-        // EKG verisini parse et
-        const ekgData = parseEkgData(fileText, file.fileName || file.file_name);
-        
-        if (ekgData && ekgData.length > 0) {
-          console.log(`EKG verisi başarıyla parse edildi: ${ekgData.length} örnek`);
-          
-          // Grafik için uygun örnekleme (çok büyük veriler için)
-          let displayData = ekgData;
-          if (ekgData.length > 5000) {
-            // Büyük dosyalar için örnekleme yap
-            const step = Math.ceil(ekgData.length / 5000);
-            displayData = ekgData.filter((_, index) => index % step === 0);
-            console.log(`Veri örneklendi: ${ekgData.length} -> ${displayData.length} örnek`);
-          }
-          
-          // Basit R-peak tespiti için threshold hesapla
-          const maxVal = Math.max(...displayData);
-          const minVal = Math.min(...displayData);
-          const threshold = minVal + (maxVal - minVal) * 0.6;
-          
-          // R-peak benzeri noktaları bul
-          const peaks = [];
-          for (let i = 5; i < displayData.length - 5; i++) {
-            if (displayData[i] > threshold && 
-                displayData[i] > displayData[i-1] && 
-                displayData[i] > displayData[i+1] &&
-                displayData[i] > displayData[i-2] && 
-                displayData[i] > displayData[i+2]) {
-              // Son peak'ten en az 20 örnek uzakta olsun
-              if (peaks.length === 0 || (i - peaks[peaks.length - 1]) > 20) {
-                peaks.push(i);
-              }
-            }
-          }
-          
-          // Kalp hızını hesapla
-          let heartRate = null;
-          if (peaks.length > 1) {
-            const avgInterval = (peaks[peaks.length - 1] - peaks[0]) / (peaks.length - 1);
-            const samplingRate = file.samplingRate || 250; // Varsayılan sampling rate
-            const bpm = Math.round(60 / (avgInterval / samplingRate));
-            if (bpm >= 30 && bpm <= 300) { // Fizyolojik sınırlar
-              heartRate = bpm;
-            }
-          }
-          
-          // Analiz sonucu oluştur
-          const analysisResult = {
-            success: true,
-            display_signal: displayData,
-            r_peaks: peaks,
-            sampleCount: ekgData.length,
-            heartRate: heartRate,
-            samplingRate: file.samplingRate || 250,
-            duration: ekgData.length / (file.samplingRate || 250),
-            analysisType: 'real_time_display',
-            timestamp: new Date().toISOString(),
-            fileName: file.fileName || file.file_name,
-            uploadDate: file.uploadDate || file.uploaded_at,
-            
-            // Basit klinik metrikler
-            clinical_metrics: {
-              heart_rate_bpm: heartRate,
-              peak_count: peaks.length,
-              signal_quality: peaks.length > 5 ? 'İyi' : 'Düşük',
-              duration_seconds: ekgData.length / (file.samplingRate || 250)
-            },
-            
-            // Basit AI özeti
-            ai_summary: {
-              risk_level: heartRate ? (heartRate < 60 ? 'Düşük' : heartRate > 100 ? 'Orta' : 'Normal') : 'Bilinmiyor',
-              findings: [
-                heartRate ? `Tespit edilen kalp hızı: ${heartRate} bpm` : 'Kalp hızı hesaplanamadı',
-                `${peaks.length} adet peak tespit edildi`,
-                `Kayıt süresi: ${(ekgData.length / (file.samplingRate || 250)).toFixed(1)} saniye`
-              ],
-              recommendations: [
-                heartRate && heartRate < 60 ? 'Bradikardi tespit edildi, kardiyoloji değerlendirmesi önerilir' :
-                heartRate && heartRate > 100 ? 'Taşikardi tespit edildi, klinik değerlendirme gerekebilir' :
-                'Normal kalp hızı aralığında',
-                'Detaylı analiz için profesyonel değerlendirme önerilir'
-              ]
-            }
-          };
-          
-          setAnalysisResult(analysisResult);
-          console.log('EKG analizi tamamlandı:', {
-            heartRate,
-            peaks: peaks.length,
-            duration: (ekgData.length / (file.samplingRate || 250)).toFixed(1) + 's'
-          });
-          
-        } else {
-          console.warn('EKG verisi parse edilemedi veya boş');
-          setAnalysisResult(null);
-        }
-      } else {
-        console.warn('Dosya indirme URL\'si bulunamadı');
-        setAnalysisResult(null);
-      }
-    } catch (error) {
-      console.error('EKG dosyası işlenirken hata:', error);
-      setAnalysisResult(null);
-    } finally {
-      setIsLoading(false);
+    // 1) Önbelleğe bak
+    const cached = loadCachedAnalysis(file);
+    if (cached) {
+      setAnalysisResult(cached);
+      return;
     }
+    // 2) Yoksa analiz et ve önbelleğe yaz
+    setIsLoading(true);
+    setAnalysisResult(null);
+    try {
+      const response = await fetch(`${API_URL}/analyze/${file.id}`);
+      const result = await response.json();
+      if (result.success) {
+        setAnalysisResult(result);
+        saveCachedAnalysis(file, result);
+      } else {
+        alert(`Analiz hatası: ${result.error}`);
+      }
+    } catch (error) { console.error("Analiz hatası:", error); } 
+    finally { setIsLoading(false); }
   }, [isLoading]);
 
-  // EKG dosya formatını parse et - GELİŞTİRİLMİŞ VERSİYON
-  const parseEkgData = (fileText, fileName) => {
-    try {
-      console.log('EKG dosyası parse ediliyor:', fileName);
-      const lines = fileText.trim().split('\n');
-      const data = [];
-      
-      // CSV formatını kontrol et
-      if (fileName.toLowerCase().endsWith('.csv')) {
-        console.log('CSV formatı tespit edildi');
-        
-        // Header satırını kontrol et
-        const headerLine = lines[0].toLowerCase();
-        let ekgColumnIndex = 1; // Varsayılan olarak 2. kolon
-        
-        // EKG verisi hangi kolonda kontrol et
-        if (headerLine.includes('ekg') || headerLine.includes('ecg')) {
-          const headers = lines[0].split(',');
-          ekgColumnIndex = headers.findIndex(h => 
-            h.toLowerCase().includes('ekg') || 
-            h.toLowerCase().includes('ecg') ||
-            h.toLowerCase().includes('signal')
-          );
-          if (ekgColumnIndex === -1) ekgColumnIndex = 1;
-        }
-        
-        for (let i = 1; i < lines.length; i++) { // Header'ı atla
-          const values = lines[i].split(',');
-          if (values.length > ekgColumnIndex) {
-            const value = parseFloat(values[ekgColumnIndex]);
-            if (!isNaN(value) && isFinite(value)) {
-              data.push(value);
-            }
-          }
-        }
-      } 
-      // Text/DAT formatını kontrol et
-      else if (fileName.toLowerCase().endsWith('.txt') || fileName.toLowerCase().endsWith('.dat')) {
-        console.log('TXT/DAT formatı tespit edildi');
-        
-        for (let line of lines) {
-          const cleanLine = line.trim();
-          if (cleanLine === '' || cleanLine.startsWith('#') || cleanLine.startsWith('//')) {
-            continue; // Boş satırları ve yorumları atla
-          }
-          
-          // Satırdaki tüm sayıları bul
-          const values = cleanLine.split(/[\s,\t;]+/);
-          for (let val of values) {
-            const value = parseFloat(val);
-            if (!isNaN(value) && isFinite(value)) {
-              data.push(value);
-            }
-          }
-        }
-      }
-      // JSON formatını kontrol et
-      else if (fileName.toLowerCase().endsWith('.json')) {
-        console.log('JSON formatı tespit edildi');
-        try {
-          const jsonData = JSON.parse(fileText);
-          if (Array.isArray(jsonData)) {
-            for (let item of jsonData) {
-              if (typeof item === 'number' && isFinite(item)) {
-                data.push(item);
-              } else if (typeof item === 'object' && item.ekg !== undefined) {
-                const value = parseFloat(item.ekg);
-                if (!isNaN(value) && isFinite(value)) {
-                  data.push(value);
-                }
-              }
-            }
-          } else if (jsonData.data && Array.isArray(jsonData.data)) {
-            for (let value of jsonData.data) {
-              const num = parseFloat(value);
-              if (!isNaN(num) && isFinite(num)) {
-                data.push(num);
-              }
-            }
-          }
-        } catch (jsonError) {
-          console.warn('JSON parse hatası:', jsonError);
-        }
-      }
-      
-      console.log(`Parse tamamlandı: ${data.length} veri noktası`);
-      
-      // Veri kalitesi kontrolü
-      if (data.length < 100) {
-        console.warn('Çok az veri noktası bulundu:', data.length);
-        return [];
-      }
-      
-      // Outlier'ları temizle (veri kalitesini artırmak için)
-      const mean = data.reduce((a, b) => a + b, 0) / data.length;
-      const std = Math.sqrt(data.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / data.length);
-      const threshold = 5 * std; // 5 sigma kuralı
-      
-      const cleanedData = data.filter(value => Math.abs(value - mean) <= threshold);
-      
-      if (cleanedData.length < data.length * 0.95) {
-        console.log(`${data.length - cleanedData.length} outlier temizlendi`);
-      }
-      
-      return cleanedData;
-      
-    } catch (error) {
-      console.error('EKG verisi parse hatası:', error);
-      return [];
-    }
-  };
-
-  // Basit kalp hızı hesaplama
-  const calculateHeartRate = (ekgData) => {
-    if (!ekgData || ekgData.length < 1000) return null;
-    
-    // Basit peak detection (örnek amaçlı)
-    let peaks = 0;
-    const threshold = Math.max(...ekgData) * 0.6;
-    
-    for (let i = 1; i < ekgData.length - 1; i++) {
-      if (ekgData[i] > threshold && 
-          ekgData[i] > ekgData[i-1] && 
-          ekgData[i] > ekgData[i+1]) {
-        peaks++;
-      }
-    }
-    
-    // Dakikada atım hesabı (varsayılan 360 Hz sampling rate)
-    const durationInMinutes = ekgData.length / (360 * 60);
-    return Math.round(peaks / durationInMinutes);
-  };
-
-  // Kullanıcı isterse yeniden analiz edebilsin
+  // Kullanıcı isterse önbelleği baypas ederek yeniden analiz edebilsin
   const forceReanalyze = async () => {
     if (!activeFile || isLoading) return;
     setIsLoading(true);
-    
+    setAnalysisResult(null);
     try {
-      console.log('Yeniden analiz yapılıyor:', activeFile.fileName);
-      
-      if (activeFile.downloadURL) {
-        const response = await fetch(activeFile.downloadURL);
-        const fileText = await response.text();
-        
-        // EKG verisini parse et
-        const ekgData = parseEkgData(fileText, activeFile.fileName);
-        
-        if (ekgData && ekgData.length > 0) {
-          // Yeniden analiz sonucu oluştur
-          const analysisResult = {
-            success: true,
-            display_signal: ekgData.slice(0, 3000), // İlk 3000 örnek için grafik
-            sampleCount: ekgData.length,
-            heartRate: calculateHeartRate(ekgData),
-            analysisType: 'reanalyzed',
-            timestamp: new Date().toISOString(),
-            fileName: activeFile.fileName,
-            uploadDate: activeFile.uploadDate
-          };
-          
-          setAnalysisResult(analysisResult);
-          console.log('Analiz tamamlandı, kalp hızı:', analysisResult.heartRate);
-        }
+      const response = await fetch(`${API_URL}/analyze/${activeFile.id}`);
+      const result = await response.json();
+      if (result.success) {
+        setAnalysisResult(result);
+        saveCachedAnalysis(activeFile, result);
+      } else {
+        alert(`Analiz hatası: ${result.error}`);
       }
-    } catch (error) {
-      console.error('Yeniden analiz hatası:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error) { console.error('Yeniden analiz hatası:', error); }
+    finally { setIsLoading(false); }
   };
 
-  // handleFileDelete fonksiyonu Firebase ile güncellenecek
+  const fetchFiles = React.useCallback(async (patientId) => {
+    if (!patientId) return;
+    try {
+      const response = await fetch(`${API_URL}/patients/${patientId}/files`);
+      const data = await response.json();
+      setFiles(Array.isArray(data) ? data : []);
+      // Loop'u önlemek için activeFile kontrolü kaldırıldı
+      // İlk dosyayı otomatik seçme işlemi ayrı bir useEffect'te yapılacak
+    } catch (error) { console.error("Dosyalar getirilirken hata:", error); }
+  }, []);
+
+  // Hasta değiştiğinde dosyaları getir
+  useEffect(() => {
+    if (patient) {
+      setActiveFile(null);
+      setAnalysisResult(null);
+      fetchFiles(patient.id);
+    }
+  }, [patient, fetchFiles]);
+
+  // Dosyalar yüklendiğinde ilk dosyayı seç (sadece activeFile null ise)
+  useEffect(() => {
+    if (files.length > 0 && !activeFile && !isLoading) {
+      handleFileSelect(files[0]);
+    }
+  }, [files, activeFile, isLoading, handleFileSelect]);
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
-    if (!file || !patient || !currentUser) return;
-    
-    setIsLoading(true);
-    
-    // Yükleniyor mesajı göster
-    if (showNotification) {
-      showNotification('Dosya yükleniyor...', 'info');
-    }
-    
-    try {
-      console.log('EKG dosyası yükleniyor:', file.name);
-      
-      // Firebase Storage'a yükle ve Firestore'da kaydet
-      const result = await uploadEkgFile(file, patient.id, currentUser.uid);
-      
-      if (result.success) {
-        console.log('EKG dosyası başarıyla yüklendi');
-        
-        // Dosya listesini yenile
-        const updatedFiles = await getPatientEkgFiles(patient.id);
-        setFiles(updatedFiles || []);
-        
-        // Yeni dosyayı aktif olarak seç
-        const newFile = updatedFiles?.find(f => f.fileName === file.name);
-        if (newFile) {
-          setActiveFile(newFile);
+    if (!file || !patient) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const content = e.target.result;
+      const ekgData = content.split(/[\n,;]/).map(val => parseFloat(val.trim())).filter(v => !isNaN(v));
+      if (ekgData.length < 100) { alert("Geçersiz EKG verisi."); return; }
+      const payload = { name: file.name, uploadedAt: new Date().toISOString(), data: ekgData, samplingRate: 200 };
+      try {
+        const res = await fetch(`${API_URL}/patients/${patient.id}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) { 
+          setActiveFile(null);
+          await fetchFiles(patient.id); 
+        } else { 
+            const errorData = await res.json();
+            alert(`Dosya yüklenemedi: ${errorData.error || 'Bilinmeyen sunucu hatası.'}`); 
         }
-        
-        // Başarı popup'ı göster
-        if (showNotification) {
-          showNotification('EKG dosyası başarıyla yüklendi!', 'success');
-        }
-      } else {
-        // Hata popup'ı göster
-        if (showNotification) {
-          showNotification(`Dosya yüklenemedi: ${result.error}`, 'error');
-        }
-      }
-    } catch (error) {
-      console.error('Dosya yükleme hatası:', error);
-      if (showNotification) {
-        showNotification('Dosya yüklenirken bir hata oluştu.', 'error');
-      }
-    } finally {
-      setIsLoading(false);
-      event.target.value = null;
-    }
+      } catch (error) { console.error("Dosya yükleme hatası:", error); }
+    };
+    reader.readAsText(file);
+    event.target.value = null;
   };
   
   const handleFileDelete = async (fileIdToDelete, event) => {
     event.stopPropagation();
-    
-    const fileToDelete = files.find(f => f.id === fileIdToDelete);
-    if (!fileToDelete) return;
-    
-    if (showConfirm) {
-      showConfirm(
-        'Bu EKG kaydını kalıcı olarak silmek istediğinizden emin misiniz?',
-        `Dosya: ${fileToDelete.fileName || fileToDelete.originalFileName || 'Bilinmeyen Dosya'}`,
-        async () => {
-          setIsLoading(true);
-          
-          try {
-            console.log('EKG dosyası siliniyor:', fileIdToDelete);
-            
-            const result = await deleteEkgFile(fileIdToDelete, fileToDelete.storagePath);
-            
-            if (result.success) {
-              // Aktif dosya siliniyorsa, seçimi temizle
-              if (activeFile?.id === fileIdToDelete) {
-                setActiveFile(null);
-                setAnalysisResult(null);
-              }
-              
-              // Dosya listesini yenile
-              const updatedFiles = await getPatientEkgFiles(patient.id);
-              setFiles(updatedFiles || []);
-              
-              // Başarı mesajı
-              if (showNotification) {
-                showNotification('EKG dosyası başarıyla silindi.', 'success');
-              }
-            } else {
-              if (showNotification) {
-                showNotification(`Dosya silinemedi: ${result.error}`, 'error');
-              }
-            }
-          } catch (error) {
-            console.error('Dosya silme hatası:', error);
-            if (showNotification) {
-              showNotification('Dosya silinirken bir hata oluştu.', 'error');
-            }
-          } finally {
-            setIsLoading(false);
+    if (window.confirm("Bu EKG kaydını kalıcı olarak silmek istediğinizden emin misiniz?")) {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/files/${fileIdToDelete}`, { method: 'DELETE' });
+        if (response.ok) {
+          if (activeFile?.id === fileIdToDelete) {
+            setActiveFile(null);
+            setAnalysisResult(null);
           }
-        },
-        'delete'
-      );
-    } else {
-      // Fallback to browser alert if showConfirm is not available
-      if (window.confirm("Bu EKG kaydını kalıcı olarak silmek istediğinizden emin misiniz?")) {
-        if (showNotification) {
-          showNotification('Dosya silme özelliği henüz geliştirme aşamasında.', 'info');
-        }
-      }
+          await fetchFiles(patient.id);
+        } else { alert("Dosya silinirken bir hata oluştu."); }
+      } catch (error) { console.error("Dosya silme hatası:", error); } 
+      finally { setIsLoading(false); }
     }
   };
 
@@ -843,101 +486,24 @@ function DetailsPage({ selectedPatientId, showConfirm, showNotification }) {
     maintainAspectRatio: false,
     animation: false,
     normalized: true,
-    interaction: { 
-      mode: 'nearest', 
-      intersect: false, 
-      axis: 'x' 
-    },
-    elements: { 
-      point: { radius: 0 }, 
-      line: { borderWidth: 1.5 } 
-    },
+    interaction: { mode: 'nearest', intersect: false, axis: 'x' },
+    elements: { point: { radius: 0 }, line: { borderWidth: 1 } },
     plugins: {
-      legend: { 
-        display: true,
-        position: 'top',
-        labels: {
-          usePointStyle: true,
-          boxWidth: 6,
-          font: { size: 12 }
-        }
-      },
-      title: { 
-        display: true, 
-        text: `${leadName} - ${analysisResult?.fileName || 'EKG Sinyali'}`,
-        font: { size: 14, weight: 'bold' }
-      },
-      tooltip: {
-        mode: 'index',
-        intersect: false,
-        callbacks: {
-          title: function(context) {
-            const timeInSeconds = parseFloat(context[0].label);
-            return `Zaman: ${timeInSeconds}s`;
-          },
-          label: function(context) {
-            if (context.datasetIndex === 0) {
-              return `EKG: ${context.parsed.y.toFixed(3)} mV`;
-            } else if (context.datasetIndex === 1 && context.parsed.y !== null) {
-              return `R-Peak: ${context.parsed.y.toFixed(3)} mV`;
-            }
-            return '';
-          }
-        }
-      },
+      legend: { display: false },
+      title: { display: true, text: leadName },
       zoom: { 
-        pan: { 
-          enabled: true, 
-          mode: 'x', 
-          onPanComplete: ({chart}) => syncCharts(chart) 
-        }, 
-        zoom: { 
-          wheel: { enabled: true }, 
-          mode: 'x', 
-          onZoomComplete: ({chart}) => syncCharts(chart) 
-        } 
+        pan: { enabled: true, mode: 'x', onPanComplete: ({chart}) => syncCharts(chart) }, 
+        zoom: { wheel: { enabled: true }, mode: 'x', onZoomComplete: ({chart}) => syncCharts(chart) } 
       },
       annotation: { annotations: getAnnotations() },
     },
     scales: { 
-      x: { 
-        title: { 
-          display: true, 
-          text: 'Zaman (saniye)',
-          font: { size: 12 }
-        }, 
-        ticks: { 
-          autoSkip: true, 
-          maxTicksLimit: 20,
-          callback: function(value, index, values) {
-            return parseFloat(value).toFixed(1) + 's';
-          }
-        }, 
-        grid: { 
-          display: true,
-          color: 'rgba(0,0,0,0.1)'
-        } 
-      }, 
+      x: { title: { display: false }, ticks: { autoSkip: true, maxTicksLimit: 20 }, grid: { display: true } }, 
       y: { 
-        title: { 
-          display: true, 
-          text: 'Genlik (mV)',
-          font: { size: 12 }
-        }, 
-        ticks: { 
-          display: true,
-          callback: function(value) {
-            return value.toFixed(2);
-          }
-        }, 
-        grid: { 
-          display: true,
-          color: 'rgba(0,0,0,0.1)'
-        },
-        ...(yRange ? { 
-          suggestedMin: yRange.min, 
-          suggestedMax: yRange.max 
-        } : {})
+        title: { display: true, text: 'Genlik (mV)' }, 
+        ticks: { display: true }, 
+        grid: { display: true },
+        ...(yRange ? { suggestedMin: yRange.min, suggestedMax: yRange.max } : {})
       } 
     }
   });
@@ -946,43 +512,13 @@ function DetailsPage({ selectedPatientId, showConfirm, showNotification }) {
     ? (Array.isArray(analysisResult.display_signal) ? analysisResult.display_signal : Array.from(analysisResult.display_signal))
     : [];
 
-  // R-peak'leri için dataset oluştur
-  const rPeaks = analysisResult?.r_peaks || [];
-  const rPeakData = displaySignal.map((value, index) => {
-    return rPeaks.includes(index) ? value : null;
-  });
-
   const chartData = {
-    labels: displaySignal.map((_, i) => {
-      // X ekseni için zaman damgası (saniye cinsinden)
-      const samplingRate = analysisResult?.samplingRate || 250;
-      return (i / samplingRate).toFixed(2);
-    }),
-    datasets: [
-      {
-        label: 'EKG Sinyali',
-        data: displaySignal,
-        borderColor: '#dc3545',
-        backgroundColor: 'rgba(220, 53, 69, 0.1)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-        spanGaps: true,
-        tension: 0,
-      },
-      {
-        label: 'R-Peaks',
-        data: rPeakData,
-        borderColor: '#28a745',
-        backgroundColor: '#28a745',
-        pointBackgroundColor: '#28a745',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        showLine: false,
-        pointHoverRadius: 6,
-      }
-    ],
+    labels: displaySignal.map((_, i) => i),
+    datasets: [{
+      label: 'EKG', data: displaySignal,
+      borderColor: '#dc3545', borderWidth: 1, pointRadius: 0,
+      spanGaps: true,
+    }],
   };
   
   if (!patient) {
@@ -1015,10 +551,7 @@ function DetailsPage({ selectedPatientId, showConfirm, showNotification }) {
               {files.map(file => (
                 <li key={file.id} className={file.id === activeFile?.id ? 'active-file' : ''}>
                   <div style={{ flexGrow: 1, cursor: 'pointer' }} onClick={() => handleFileSelect(file)}>
-                    <strong>{file.fileName || file.originalFileName || 'Bilinmeyen Dosya'}</strong>
-                    <span style={{ marginLeft: '1rem', color: 'var(--text-color-light)', fontSize: '0.9rem' }}>
-                      {formatDateTime(file.uploadDate?.seconds ? new Date(file.uploadDate.seconds * 1000).toISOString() : file.uploadDate)}
-                    </span>
+                    {file.file_name} <span>{formatDate(file.uploaded_at)}</span>
                   </div>
                   <button onClick={(e) => handleFileDelete(file.id, e)} className="btn btn-danger btn-sm" style={{ marginLeft: '1rem' }} title="Bu kaydı sil">Sil</button>
                 </li>

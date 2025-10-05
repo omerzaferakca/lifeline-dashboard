@@ -4,7 +4,8 @@ import {
   uploadBytes, 
   getDownloadURL, 
   deleteObject,
-  listAll 
+  listAll,
+  getBytes 
 } from 'firebase/storage';
 import { storage } from './config';
 
@@ -37,6 +38,36 @@ export const storageService = {
       return await getDownloadURL(storageRef);
     } catch (error) {
       console.error('Dosya URL getirilirken hata:', error);
+      throw error;
+    }
+  },
+
+  // Dosya içeriğini doğrudan Firebase SDK ile oku (CORS sorunu olmadan)
+  async getFileContent(downloadURL) {
+    try {
+      console.log('Firebase SDK ile dosya okunuyor:', downloadURL);
+      
+      // URL'den storage reference path'ini çıkar
+      const url = new URL(downloadURL);
+      const pathMatch = url.pathname.match(/\/o\/(.+)\?/);
+      if (!pathMatch) {
+        throw new Error('Invalid storage URL format');
+      }
+      
+      const filePath = decodeURIComponent(pathMatch[1]);
+      console.log('Dosya yolu çıkarıldı:', filePath);
+      
+      const storageRef = ref(storage, filePath);
+      const arrayBuffer = await getBytes(storageRef);
+      
+      // ArrayBuffer'ı string'e çevir
+      const decoder = new TextDecoder('utf-8');
+      const text = decoder.decode(arrayBuffer);
+      
+      console.log('Dosya başarıyla okundu, boyut:', text.length, 'karakter');
+      return text;
+    } catch (error) {
+      console.error('Firebase SDK ile dosya okuma hatası:', error);
       throw error;
     }
   },

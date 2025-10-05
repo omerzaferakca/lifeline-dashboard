@@ -1,7 +1,8 @@
 // Firebase EKG Storage Service
 import { 
   ref, 
-  uploadBytes, 
+  uploadBytes,
+  uploadBytesResumable,
   getDownloadURL, 
   deleteObject,
   listAll 
@@ -23,7 +24,7 @@ import { storage, db } from './config';
 
 export const ekgService = {
   // EKG dosyası yükle
-  async uploadEkgFile(file, patientId, doctorId, analysisData = {}) {
+  async uploadEkgFile(file, patientId, doctorId, progressCallback = null, analysisData = {}) {
     try {
       console.log('EKG dosyası yükleniyor:', file.name);
       
@@ -35,9 +36,36 @@ export const ekgService = {
       // Storage referansı oluştur
       const storageRef = ref(storage, filePath);
       
-      // Dosyayı yükle
-      console.log('Firebase Storage\'a yükleniyor...');
-      const snapshot = await uploadBytes(storageRef, file);
+      // Progress callback varsa uploadBytesResumable kullan
+      let snapshot;
+      if (progressCallback && typeof progressCallback === 'function') {
+        console.log('Firebase Storage\'a progress tracking ile yükleniyor...');
+        
+        const uploadTask = uploadBytesResumable(storageRef, file);
+        
+        snapshot = await new Promise((resolve, reject) => {
+          uploadTask.on('state_changed',
+            (progress) => {
+              // Progress callback çağır (0-1 arası değer)
+              const progressPercent = progress.bytesTransferred / progress.totalBytes;
+              progressCallback(progressPercent);
+            },
+            (error) => {
+              console.error('Upload hatası:', error);
+              reject(error);
+            },
+            () => {
+              // Upload tamamlandı
+              progressCallback(1.0); // %100
+              resolve(uploadTask.snapshot);
+            }
+          );
+        });
+      } else {
+        // Normal upload
+        console.log('Firebase Storage\'a yükleniyor...');
+        snapshot = await uploadBytes(storageRef, file);
+      }
       
       // Download URL al
       const downloadURL = await getDownloadURL(snapshot.ref);
