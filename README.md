@@ -1,5 +1,7 @@
 # LifeLine Dashboard
 
+https://gevherpositive-lifeline.web.app/
+
 EKG analiz sistemi için React tabanlı web dashboard'u.
 
 ## Kurulum
@@ -44,4 +46,4 @@ firebase deploy --only hosting
 
 ## Güvenlik
 
-⚠️ **Önemli:** `src/firebase/config.js` dosyası API anahtarları içerir ve GitHub'a yüklenmemelidir.
+⚠️ **Önemli:** `src/firebase/config.js` dosyası API anahtarları içerir ve GitHub'a yüklenmemelidir. Benim yaptığımı yapmayın xd.
