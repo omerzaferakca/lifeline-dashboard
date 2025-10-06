@@ -36,6 +36,9 @@ backend/.env
 .env.production
 firebase-debug.log
 
+# Firebase Config - API Keys içeriyor, GitHub'a yüklenmemeli
+src/firebase/config.js
+
 # Firebase config dosyaları production için gerekli - commit edilebilir
 # .firebase/
 # .firebaserc
