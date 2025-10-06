@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Kullanıcılar sadece kendi profillerini görebilir/düzenleyebilir
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && 
+        (resource.data.role == 'doctor' || request.auth.uid == userId);
+    }
+    
+    // Hastalar - sadece kendi doktorları erişebilir
+    match /patients/{patientId} {
+      allow read, write: if request.auth != null && 
+        resource.data.doctorId == request.auth.uid;
+      allow create: if request.auth != null && 
+        request.resource.data.doctorId == request.auth.uid;
+    }
+    
+    // EKG analizleri - sadece hasta sahibi doktor erişebilir
+    match /analyses/{analysisId} {
+      allow read, write: if request.auth != null;
+      // Daha detaylı kural: hasta-doktor eşleşmesi kontrol edilecek
+    }
+    
+    // EKG dosyaları
+    match /ecgFiles/{fileId} {
+      allow read, write: if request.auth != null;
+      // Daha detaylı kural: hasta-doktor eşleşmesi kontrol edilecek
+    }
+    
+    // Genel okuma/yazma (development için geçici)
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

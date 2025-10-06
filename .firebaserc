@@ -1,0 +1,16 @@
+{
+  "projects": {
+    "LifeLine": "lifeline-b46be",
+    "default": "positive-lifeline-web"
+  },
+  "targets": {
+    "positive-lifeline-web": {
+      "hosting": {
+        "gevherpositive-lifeline": [
+          "gevherpositive-lifeline"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

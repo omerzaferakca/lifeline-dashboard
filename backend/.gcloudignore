@@ -1,0 +1,31 @@
+# Ignore development files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info
+.pytest_cache/
+.coverage
+.env
+.env.*
+
+# Ignore local database
+database.db
+*.log
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore Docker files not needed in cloud
+Dockerfile.local
+docker-compose.yml

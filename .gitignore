@@ -30,17 +30,19 @@ backend/__pycache__/
 backend/*.pyc
 backend/.env
 
-# Firebase - Private Keys and Config
+# Firebase - Private Keys and Config (şimdi dahil edilmeli)
 .env
 .env.local
 .env.production
 firebase-debug.log
-.firebase/
-.firebaserc
-firebase.json
-firestore.indexes.json
-firestore.rules
-storage.rules
+
+# Firebase config dosyaları production için gerekli - commit edilebilir
+# .firebase/
+# .firebaserc
+# firebase.json
+# firestore.indexes.json
+# firestore.rules
+# storage.rules
 
 # VS Code Settings
 .vscode/
@@ -65,6 +67,7 @@ Desktop.ini
 # Logs
 logs/
 *.log
+ecg_analysis.log
 
 # Temporary files
 temp/
@@ -76,6 +79,7 @@ uploads/
 processed/
 patient-data/
 medical-records/
+*.csv
 
 # ML Models and Training Data
 *.pth
@@ -87,3 +91,13 @@ models/
 # Analysis Results - Potentially Sensitive
 analysis-results/
 reports/
+
+# Database files
+*.db
+database.db
+
+# Functions - artık kullanılmıyor
+functions/
+
+# CORS config - production'da gerekli değil
+cors.json

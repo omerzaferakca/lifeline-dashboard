@@ -6,13 +6,14 @@ import {
 } from 'chart.js';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
+import { hybridEkgService } from '../firebase/hybridEkgService';
+import { useAuth } from '../contexts/AuthContext';
+import { getPatientById } from '../firebase/patientService';
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
   Title, Tooltip, Legend, annotationPlugin, zoomPlugin
 );
-
-const API_URL = 'http://127.0.0.1:5001/api';
 
 const ANOMALY_COLORS = {
     'V': { background: 'rgba(255, 99, 132, 0.3)', border: 'rgba(255, 99, 132, 0.5)' },
@@ -22,8 +23,28 @@ const ANOMALY_COLORS = {
 };
 
 const formatDate = (isoString) => {
-    if (!isoString) return '';
-    return new Date(isoString).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    if (!isoString) return 'Tarih bilinmiyor';
+    try {
+        // Firebase Timestamp object'i olabilir
+        let date;
+        if (isoString && typeof isoString.toDate === 'function') {
+            date = isoString.toDate();
+        } else {
+            date = new Date(isoString);
+        }
+        
+        if (isNaN(date.getTime())) return 'Geçersiz tarih';
+        
+        return date.toLocaleDateString('tr-TR', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (error) {
+        return 'Tarih hatası';
+    }
 };
 
 const formatDateTime = (isoString) => {
@@ -49,11 +70,15 @@ const safeText = (str) => {
   .replaceAll('Ç','C').replaceAll('ç','c');
 };
 
-function DetailsPage({ patient }) {
+function DetailsPage({ selectedPatientId, showConfirm, showNotification }) {
+  const { currentUser } = useAuth();
+  const [patient, setPatient] = useState(null);
   const [files, setFiles] = useState([]);
   const [activeFile, setActiveFile] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   
   const chartRefs = {
@@ -62,84 +87,105 @@ function DetailsPage({ patient }) {
     'Lead III': useRef(null),
   };
 
-  // ---- ANALIZ CACHE (localStorage) ----
-  const CACHE_VERSION = 'v1';
-  const makeCacheKey = (file) => `lifeline:analysis:${CACHE_VERSION}:${file.id}`;
-  const loadCachedAnalysis = (file) => {
-    try {
-      const raw = localStorage.getItem(makeCacheKey(file));
-      if (!raw) return null;
-      const cached = JSON.parse(raw);
-      // Dosya değişmişse (tarih farklı) önbelleği kullanma
-      if (cached?.uploaded_at !== file.uploaded_at) return null;
-      return cached.result || null;
-    } catch { return null; }
-  };
-  const saveCachedAnalysis = (file, result) => {
-    try {
-      const payload = { uploaded_at: file.uploaded_at, result, cached_at: new Date().toISOString() };
-      localStorage.setItem(makeCacheKey(file), JSON.stringify(payload));
-    } catch {
-      // Olası quota hatalarını sessizce yutuyoruz
-    }
-  };
-  const clearCachedAnalysis = (file) => {
-    try { localStorage.removeItem(makeCacheKey(file)); } catch { /* ignore */ }
-  };
-
   const handleFileSelect = React.useCallback(async (file) => {
     if (!file || isLoading) return;
+    console.log('=== EKG DOSYASI SEÇİLDİ ===');
+    console.log('Dosya bilgileri:', file);
+    
     setActiveFile(file);
-    // 1) Önbelleğe bak
-    const cached = loadCachedAnalysis(file);
-    if (cached) {
-      setAnalysisResult(cached);
+    
+    // Check if file already has analysis result with display_signal
+    if (file.analysisMetadata && file.analysisMetadata.display_signal) {
+      console.log('✅ Dosyada mevcut analiz sonucu ve display_signal bulundu');
+      setAnalysisResult({ analysis_result: file.analysisMetadata });
       return;
     }
-    // 2) Yoksa analiz et ve önbelleğe yaz
+    
+    console.log('🔄 Display signal bulunamadı, backend ile yeniden analiz başlatılıyor...');
     setIsLoading(true);
     setAnalysisResult(null);
+    
     try {
-      const response = await fetch(`${API_URL}/analyze/${file.id}`);
-      const result = await response.json();
+      console.log('Hybrid backend ile analiz başlatılıyor:', file.storagePath);
+      const result = await hybridEkgService.analyzeEkgFile(file.storagePath);
+      
       if (result.success) {
         setAnalysisResult(result);
-        saveCachedAnalysis(file, result);
+        console.log('Hybrid analiz başarılı:', result);
       } else {
-        alert(`Analiz hatası: ${result.error}`);
+        console.error('Hybrid analiz başarısız:', result);
+        showNotification('Analiz Hatası', `Analiz hatası: ${result.error}`, 'error');
       }
-    } catch (error) { console.error("Analiz hatası:", error); } 
-    finally { setIsLoading(false); }
+    } catch (error) {
+      console.error('Hybrid analiz hatası:', error);
+      showNotification('Analiz Hatası', `Analiz hatası: ${error.message}`, 'error');
+    } finally {
+      setIsLoading(false);
+    }
   }, [isLoading]);
 
-  // Kullanıcı isterse önbelleği baypas ederek yeniden analiz edebilsin
+  // Kullanıcı isterse yeniden analiz edebilsin
   const forceReanalyze = async () => {
     if (!activeFile || isLoading) return;
+    console.log('🔄 FORCE REANALYZE - Hybrid backend ile analiz:', activeFile.originalFileName);
+    
     setIsLoading(true);
     setAnalysisResult(null);
+    
     try {
-      const response = await fetch(`${API_URL}/analyze/${activeFile.id}`);
-      const result = await response.json();
+      const result = await hybridEkgService.analyzeEkgFile(activeFile.storagePath);
+      
       if (result.success) {
         setAnalysisResult(result);
-        saveCachedAnalysis(activeFile, result);
+        console.log('Force reanalyze başarılı:', result);
       } else {
-        alert(`Analiz hatası: ${result.error}`);
+        console.error('Force reanalyze başarısız:', result);
+        showNotification('Analiz Hatası', `Analiz hatası: ${result.error}`, 'error');
       }
-    } catch (error) { console.error('Yeniden analiz hatası:', error); }
-    finally { setIsLoading(false); }
+    } catch (error) {
+      console.error('Force reanalyze hatası:', error);
+      showNotification('Analiz Hatası', `Analiz hatası: ${error.message}`, 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const fetchFiles = React.useCallback(async (patientId) => {
     if (!patientId) return;
     try {
-      const response = await fetch(`${API_URL}/patients/${patientId}/files`);
-      const data = await response.json();
-      setFiles(Array.isArray(data) ? data : []);
-      // Loop'u önlemek için activeFile kontrolü kaldırıldı
-      // İlk dosyayı otomatik seçme işlemi ayrı bir useEffect'te yapılacak
-    } catch (error) { console.error("Dosyalar getirilirken hata:", error); }
+      console.log('Loading EKG files for patient:', patientId);
+      // Use hybrid service to get files from Firebase 'analyses' collection
+      const files = await hybridEkgService.getPatientEkgFiles(patientId);
+      console.log('Files retrieved:', files);
+      setFiles(Array.isArray(files) ? files : []);
+    } catch (error) { 
+      console.error("Dosyalar getirilirken hata:", error);
+      setFiles([]);
+    }
   }, []);
+
+  // selectedPatientId'den patient'ı fetch et
+  useEffect(() => {
+    const loadPatient = async () => {
+      if (!selectedPatientId) {
+        console.log('Loading patient: selectedPatientId is null');
+        setPatient(null);
+        return;
+      }
+      
+      try {
+        console.log('Loading patient:', selectedPatientId);
+        const patientData = await getPatientById(selectedPatientId);
+        console.log('Patient loaded:', patientData);
+        setPatient(patientData);
+      } catch (error) {
+        console.error('Error loading patient:', error);
+        setPatient(null);
+      }
+    };
+
+    loadPatient();
+  }, [selectedPatientId]);
 
   // Hasta değiştiğinde dosyaları getir
   useEffect(() => {
@@ -160,43 +206,86 @@ function DetailsPage({ patient }) {
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file || !patient) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const content = e.target.result;
-      const ekgData = content.split(/[\n,;]/).map(val => parseFloat(val.trim())).filter(v => !isNaN(v));
-      if (ekgData.length < 100) { alert("Geçersiz EKG verisi."); return; }
-      const payload = { name: file.name, uploadedAt: new Date().toISOString(), data: ekgData, samplingRate: 200 };
-      try {
-        const res = await fetch(`${API_URL}/patients/${patient.id}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (res.ok) { 
-          setActiveFile(null);
-          await fetchFiles(patient.id); 
-        } else { 
-            const errorData = await res.json();
-            alert(`Dosya yüklenemedi: ${errorData.error || 'Bilinmeyen sunucu hatası.'}`); 
+    
+    // File size validation (100MB limit)
+    const maxSize = 100 * 1024 * 1024; // 100MB in bytes
+    if (file.size > maxSize) {
+      showNotification(
+        'Dosya Boyutu Hatası', 
+        `Dosya boyutu 100MB'dan büyük olamaz. Seçilen dosya: ${(file.size / (1024 * 1024)).toFixed(2)} MB`, 
+        'error'
+      );
+      event.target.value = '';
+      return;
+    }
+    
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+      console.log('Starting hybrid upload with analysis...');
+      
+      // Use hybrid service for upload with automatic analysis
+      const result = await hybridEkgService.uploadEkgFileWithAnalysis(
+        file, 
+        patient.id, 
+        currentUser?.uid || 'unknown',
+        (progress) => {
+          const progressPercent = Math.round(progress * 100);
+          setUploadProgress(progressPercent);
+          console.log(`Upload progress: ${progressPercent}%`);
         }
-      } catch (error) { console.error("Dosya yükleme hatası:", error); }
-    };
-    reader.readAsText(file);
-    event.target.value = null;
+      );
+      
+      console.log('Upload and analysis completed:', result);
+      
+      // Refresh file list
+      setActiveFile(null);
+      await fetchFiles(patient.id);
+      
+      showNotification('Başarılı', 'Dosya başarıyla yüklendi ve analiz edildi!', 'success');
+      
+    } catch (error) {
+      console.error("Hybrid upload error:", error);
+      showNotification('Hata', `Dosya yükleme ve analiz hatası: ${error.message}`, 'error');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+    
+    event.target.value = '';
   };
   
   const handleFileDelete = async (fileIdToDelete, event) => {
     event.stopPropagation();
-    if (window.confirm("Bu EKG kaydını kalıcı olarak silmek istediğinizden emin misiniz?")) {
-      setIsLoading(true);
-      try {
-        const response = await fetch(`${API_URL}/files/${fileIdToDelete}`, { method: 'DELETE' });
-        if (response.ok) {
+    
+    showConfirm(
+      'Dosyayı Sil',
+      'Bu EKG kaydını kalıcı olarak silmek istediğinizden emin misiniz?',
+      async () => {
+        setIsLoading(true);
+        try {
+          const fileToDelete = files.find(f => f.id === fileIdToDelete);
+          await hybridEkgService.deleteEkgFile(fileIdToDelete, fileToDelete?.storagePath);
+          
+          // Clear active file if it was deleted
           if (activeFile?.id === fileIdToDelete) {
             setActiveFile(null);
             setAnalysisResult(null);
           }
+          
+          // Refresh file list
           await fetchFiles(patient.id);
-        } else { alert("Dosya silinirken bir hata oluştu."); }
-      } catch (error) { console.error("Dosya silme hatası:", error); } 
-      finally { setIsLoading(false); }
-    }
+          
+          showNotification('Başarılı', 'Dosya başarıyla silindi!', 'success');
+        } catch (error) {
+          console.error('Dosya silme hatası:', error);
+          showNotification('Hata', `Dosya silme hatası: ${error.message}`, 'error');
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      'danger'
+    );
   };
 
   const loadJsPDF = () => {
@@ -429,13 +518,13 @@ function DetailsPage({ patient }) {
   };
 
   const getAnnotations = () => {
-    if (!analysisResult?.beat_predictions || !analysisResult?.r_peaks) return {};
+    if (!analysisResult?.analysis_result?.beat_predictions || !analysisResult?.analysis_result?.r_peaks || !analysisResult?.analysis_result?.display_signal) return {};
     const annotations = {};
-    const beatWidth = (analysisResult.display_signal.length / analysisResult.r_peaks.length) * 0.7;
+    const beatWidth = (analysisResult.analysis_result.display_signal.length / analysisResult.analysis_result.r_peaks.length) * 0.7;
     const MAX_ANNOTATIONS = 300; // performans için üst sınır
-    const anomalousBeats = analysisResult.beat_predictions.filter(beat => !beat.class_name.startsWith("Normal"));
+    const anomalousBeats = analysisResult.analysis_result.beat_predictions.filter(beat => !beat.class_name.startsWith("Normal"));
     anomalousBeats.slice(0, MAX_ANNOTATIONS).forEach((beat, index) => {
-        const rPeakIndex = analysisResult.r_peaks[beat.beat_id];
+        const rPeakIndex = analysisResult.analysis_result.r_peaks[beat.beat_id];
         if (rPeakIndex === undefined) return;
         const char_code = beat.class_name.charAt(beat.class_name.length - 2);
         const color = ANOMALY_COLORS[char_code] || ANOMALY_COLORS['Q'];
@@ -465,7 +554,7 @@ function DetailsPage({ patient }) {
 
   // Y ekseni için genlik aralığını hesapla (veriye göre 10% tampon)
   const getYRange = () => {
-    const data = analysisResult?.display_signal;
+    const data = analysisResult?.analysis_result?.display_signal;
     if (!Array.isArray(data) || data.length === 0) return null;
     let min = Infinity, max = -Infinity;
     for (let i = 0; i < data.length; i++) {
@@ -508,8 +597,14 @@ function DetailsPage({ patient }) {
     }
   });
   
-  const displaySignal = analysisResult?.display_signal
-    ? (Array.isArray(analysisResult.display_signal) ? analysisResult.display_signal : Array.from(analysisResult.display_signal))
+  console.log('=== GRAFİK RENDER (Lead I) ===');
+  console.log('analysisResult var mı?', !!analysisResult);
+  console.log('analysis_result mevcut mu?', !!analysisResult?.analysis_result);
+  console.log('display_signal mevcut mu?', !!analysisResult?.analysis_result?.display_signal);
+  console.log('displaySignal boyutu:', analysisResult?.analysis_result?.display_signal?.length || 0);
+  
+  const displaySignal = analysisResult?.analysis_result?.display_signal
+    ? (Array.isArray(analysisResult.analysis_result.display_signal) ? analysisResult.analysis_result.display_signal : Array.from(analysisResult.analysis_result.display_signal))
     : [];
 
   const chartData = {
@@ -529,15 +624,46 @@ function DetailsPage({ patient }) {
     );
   }
 
-  const clinicalMetrics = analysisResult?.clinical_metrics;
-  const aiSummary = analysisResult?.ai_summary;
+  const clinicalMetrics = analysisResult?.analysis_result?.clinical_metrics;
+  const aiSummary = analysisResult?.analysis_result?.ai_summary;
   const patientMeds = patient.medications ? (typeof patient.medications === 'string' ? JSON.parse(patient.medications) : patient.medications) : [];
+
+  console.log('🔥 FULL analysisResult structure:', analysisResult);
+  console.log('🔥 clinical_metrics:', clinicalMetrics);
+  console.log('🔥 ai_summary:', aiSummary);
 
   return (
     <div className="page">
       <div className="page-header">
-        <h1>{patient.name}</h1>
-        <p><strong>TC:</strong> {patient.tc} | <strong>Yaş:</strong> {patient.age} | <strong>Cinsiyet:</strong> {patient.gender}</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h1 style={{ margin: '0 0 0.5rem 0', color: '#1e293b' }}>EKG Detay Analizi</h1>
+            {patient && (
+              <div style={{ 
+                fontSize: '1.2rem', 
+                fontWeight: '600', 
+                color: '#2563eb',
+                background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(59, 130, 246, 0.1))',
+                padding: '0.75rem 1.25rem',
+                borderRadius: '12px',
+                border: '1px solid rgba(37, 99, 235, 0.2)',
+                boxShadow: '0 2px 4px rgba(37, 99, 235, 0.1)'
+              }}>
+                👤 {patient.firstName} {patient.lastName}
+                {patient.tcNo && (
+                  <span style={{ fontSize: '1rem', color: '#64748b', marginLeft: '1.5rem', fontWeight: '400' }}>
+                    TC: {patient.tcNo}
+                  </span>
+                )}
+                {patient.age && (
+                  <span style={{ fontSize: '1rem', color: '#64748b', marginLeft: '1rem', fontWeight: '400' }}>
+                    Yaş: {patient.age}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* --- YENİ İKİ SÜTUNLU YAPI --- */}
@@ -551,14 +677,19 @@ function DetailsPage({ patient }) {
               {files.map(file => (
                 <li key={file.id} className={file.id === activeFile?.id ? 'active-file' : ''}>
                   <div style={{ flexGrow: 1, cursor: 'pointer' }} onClick={() => handleFileSelect(file)}>
-                    {file.file_name} <span>{formatDate(file.uploaded_at)}</span>
+                    <div style={{ fontWeight: 'bold' }}>{file.originalFileName || file.fileName}</div>
+                    <div style={{ fontSize: '0.85em', color: '#666' }}>
+                      Yüklenme: {formatDate(file.uploadDate || file.createdAt)}
+                    </div>
                   </div>
                   <button onClick={(e) => handleFileDelete(file.id, e)} className="btn btn-danger btn-sm" style={{ marginLeft: '1rem' }} title="Bu kaydı sil">Sil</button>
                 </li>
               ))}
               {files.length === 0 && !isLoading && <p>Bu hasta için kayıt bulunamadı.</p>}
             </ul>
-            <label htmlFor="patient-file-upload" className="btn btn-secondary" style={{width: '100%', textAlign: 'center', marginTop: '1rem'}}>+ Yeni Kayıt Yükle</label>
+            <label htmlFor="patient-file-upload" className="btn btn-secondary" style={{width: '100%', textAlign: 'center', marginTop: '1rem'}}>
+              + Yeni Kayıt Yükle
+            </label>
             <input id="patient-file-upload" type="file" style={{display: 'none'}} onChange={handleFileUpload} accept=".csv,.txt,.dat"/>
           </div>
 
@@ -576,7 +707,7 @@ function DetailsPage({ patient }) {
           {['Lead I', 'Lead II', 'Lead III'].map(leadName => (
             <div key={leadName} className="chart-container-full" style={{ position: 'relative', height: '400px', marginBottom: '1rem' }}>
               {isLoading && <div className="loading-overlay"><span>Analiz yapılıyor...</span></div>}
-              {analysisResult ? (
+              {analysisResult && analysisResult.analysis_result?.display_signal ? (
                 <Line ref={chartRefs[leadName]} options={chartOptions(leadName)} data={chartData} />
               ) : !isLoading && (
                 <div className="loading-placeholder" style={{height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
@@ -686,6 +817,93 @@ function DetailsPage({ patient }) {
         </div>
 
       </div>
+      
+      {/* Upload Progress Modal */}
+      {isUploading && (
+        <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.7)' }}>
+          <div className="modal-content" style={{ 
+            margin: '15% auto', 
+            width: '450px', 
+            padding: '30px', 
+            backgroundColor: 'white', 
+            borderRadius: '12px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+            textAlign: 'center'
+          }}>
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ 
+                width: '60px', 
+                height: '60px', 
+                margin: '0 auto 15px', 
+                borderRadius: '50%', 
+                backgroundColor: '#e3f2fd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <div style={{ 
+                  width: '30px', 
+                  height: '30px', 
+                  border: '3px solid #2196f3',
+                  borderTop: '3px solid transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
+              </div>
+              <h4 style={{ color: '#333', marginBottom: '10px' }}>Dosya İşleniyor</h4>
+              <p style={{ color: '#666', fontSize: '0.9em', margin: '0' }}>
+                Dosya yükleniyor ve EKG analizi yapılıyor...
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ 
+                width: '100%', 
+                backgroundColor: '#f5f5f5', 
+                borderRadius: '15px', 
+                height: '8px',
+                overflow: 'hidden'
+              }}>
+                <div 
+                  style={{ 
+                    width: `${uploadProgress}%`, 
+                    height: '100%', 
+                    background: 'linear-gradient(90deg, #4CAF50, #45a049)', 
+                    borderRadius: '15px',
+                    transition: 'width 0.3s ease'
+                  }}
+                ></div>
+              </div>
+              <p style={{ 
+                marginTop: '10px', 
+                fontSize: '1.1em', 
+                fontWeight: '600',
+                color: '#4CAF50' 
+              }}>
+                %{uploadProgress}
+              </p>
+            </div>
+            
+            <div style={{ 
+              fontSize: '0.85em', 
+              color: '#888',
+              padding: '15px',
+              backgroundColor: '#f9f9f9',
+              borderRadius: '8px',
+              border: '1px solid #eee'
+            }}>
+              <p style={{ margin: '0 0 5px 0' }}>
+                {uploadProgress < 30 ? '⚡ Dosya Firebase Storage\'a yükleniyor' :
+                 uploadProgress < 80 ? '🧠 Yapay zeka ile EKG sinyali analiz ediliyor' : 
+                 '📊 Sonuçlar hazırlanıyor ve kaydediliyor'}
+              </p>
+              <div style={{ marginTop: '8px', fontSize: '0.8em', color: '#aaa' }}>
+                {uploadProgress < 50 ? 'Bu işlem birkaç dakika sürebilir...' : 'Neredeyse tamam!'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

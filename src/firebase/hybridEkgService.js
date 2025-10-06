@@ -39,35 +39,56 @@ export const hybridEkgService = {
     }
   },
 
-  // Analyze EKG file using hybrid backend
-  async analyzeEkgFile(filePath) {
-    try {
-      console.log('Hybrid EKG analysis starting:', filePath);
-      
-      const response = await fetch(HYBRID_ENDPOINTS.ANALYZE_MANUAL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ file_path: filePath })
-      });
+  // Analyze EKG file using hybrid backend with timeout and retry
+  async analyzeEkgFile(filePath, maxRetries = 2) {
+    let lastError;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Hybrid EKG analysis starting (attempt ${attempt + 1}/${maxRetries + 1}):`, filePath);
+        
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+        
+        const response = await fetch(HYBRID_ENDPOINTS.ANALYZE_MANUAL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ file_path: filePath }),
+          signal: controller.signal
+        });
 
-      if (!response.ok) {
-        throw new Error(`Analysis failed: ${response.status} ${response.statusText}`);
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Analysis failed: ${response.status} ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('🔥 Hybrid analysis RAW response:', result);
+        console.log('🔥 Response keys:', Object.keys(result));
+        console.log('🔥 analysis_result keys:', result.analysis_result ? Object.keys(result.analysis_result) : 'NONE');
+        console.log('🔥 display_signal type:', typeof result.analysis_result?.display_signal);
+        console.log('🔥 display_signal is array?:', Array.isArray(result.analysis_result?.display_signal));
+        
+        return result;
+      } catch (error) {
+        lastError = error;
+        console.error(`Hybrid EKG analysis failed (attempt ${attempt + 1}):`, error);
+        
+        // If it's the last attempt or a non-recoverable error, throw
+        if (attempt === maxRetries || error.name === 'AbortError') {
+          break;
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
       }
-
-      const result = await response.json();
-      console.log('🔥 Hybrid analysis RAW response:', result);
-      console.log('🔥 Response keys:', Object.keys(result));
-      console.log('🔥 analysis_result keys:', result.analysis_result ? Object.keys(result.analysis_result) : 'NONE');
-      console.log('🔥 display_signal type:', typeof result.analysis_result?.display_signal);
-      console.log('🔥 display_signal is array?:', Array.isArray(result.analysis_result?.display_signal));
-      
-      return result;
-    } catch (error) {
-      console.error('Hybrid EKG analysis failed:', error);
-      throw error;
     }
+    
+    throw lastError;
   },
 
   // Upload EKG file with hybrid analysis
@@ -138,10 +159,33 @@ export const hybridEkgService = {
         if (progressCallback) progressCallback(0.8); // 80%
         
         if (analysisResult.success) {
-          // Update analysis record with results
+          // Update analysis record with results (store only summary, not full display_signal)
+          // Filter out undefined values to prevent Firebase errors
+          const analysisMetadata = {};
+          
+          if (analysisResult.analysis_result?.clinical_metrics) {
+            analysisMetadata.clinical_metrics = analysisResult.analysis_result.clinical_metrics;
+          }
+          
+          if (analysisResult.analysis_result?.ai_summary) {
+            analysisMetadata.ai_summary = analysisResult.analysis_result.ai_summary;
+          }
+          
+          if (analysisResult.analysis_result?.r_peaks) {
+            analysisMetadata.r_peaks = analysisResult.analysis_result.r_peaks;
+          }
+          
+          if (analysisResult.analysis_result?.beat_predictions) {
+            analysisMetadata.beat_predictions = analysisResult.analysis_result.beat_predictions;
+          }
+          
+          if (analysisResult.analysis_result?.processing_info) {
+            analysisMetadata.processing_info = analysisResult.analysis_result.processing_info;
+          }
+          
           await updateDoc(doc(db, 'analyses', analysisDoc.id), {
             analysisStatus: 'completed',
-            analysisResult: analysisResult.analysis_result,
+            analysisMetadata: analysisMetadata,
             heartRate: analysisResult.analysis_result?.clinical_metrics?.heart_rate_bpm || 0,
             riskLevel: analysisResult.analysis_result?.ai_summary?.risk_level || 'bilinmiyor',
             rhythmType: analysisResult.analysis_result?.ai_summary?.rhythm_type || 'bilinmiyor',
@@ -158,7 +202,7 @@ export const hybridEkgService = {
             success: true,
             id: analysisDoc.id,
             downloadURL: downloadURL,
-            analysisResult: analysisResult.analysis_result
+            analysisResult: analysisResult.analysis_result // Full result for immediate use
           };
         } else {
           // Analysis failed

@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Authenticated users can access ekg files
+    match /ekg/{doctorId}/{patientId}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == doctorId;
+    }
+    
+    // Allow authenticated users to read/write their own files
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Public assets (if any)
+    match /public/{allPaths=**} {
+      allow read: if true;
+    }
+  }
+}

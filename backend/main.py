@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scipy.signal import resample, butter, filtfilt, find_peaks
 import neurokit2 as nk
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS, cross_origin
 
 # Firebase Admin SDK (for Storage access)
@@ -1024,8 +1024,12 @@ class ECGProcessor:
 
 # Initialize Flask app
 app = Flask(__name__)
-# Allow CORS for API routes and analysis endpoints
-CORS(app, resources={r"/api/*": {"origins": "*"}, r"/analyze": {"origins": "*"}, r"/health": {"origins": "*"}})
+# Allow CORS for all endpoints including debug with more permissive settings
+CORS(app, 
+     resources={r"/*": {"origins": "*"}}, 
+     allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     supports_credentials=False)
 
 # Initialize components
 db_manager = DatabaseManager()
@@ -1040,7 +1044,7 @@ except Exception as e:
     logger.critical(f"ECG Processor initialization failed: {e}")
 
 # --------------------- Firebase Initialization ---------------------
-FIREBASE_BUCKET_NAME = os.environ.get("FIREBASE_STORAGE_BUCKET") or "positive-lifeline-web.appspot.com"
+FIREBASE_BUCKET_NAME = os.environ.get("FIREBASE_STORAGE_BUCKET") or "positive-lifeline-web.firebasestorage.app"
 
 def init_firebase_if_needed():
     """Initialize Firebase Admin SDK if available and not initialized yet."""
@@ -1066,15 +1070,6 @@ def init_firebase_if_needed():
         logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
         return False
 
-def _normalize_bucket_name(bucket_name: str) -> str:
-    """Normalize Firebase bucket names to canonical appspot.com when needed."""
-    if not bucket_name:
-        return bucket_name
-    # Map *.firebasestorage.app -> *.appspot.com
-    if bucket_name.endswith('.firebasestorage.app'):
-        return bucket_name.replace('.firebasestorage.app', '.appspot.com')
-    return bucket_name
-
 def _parse_storage_input(path_or_uri: str) -> Tuple[Optional[str], str]:
     """Accept file_path as a relative path, gs://bucket/object, or URL; return (bucket, object_path)."""
     s = path_or_uri.strip()
@@ -1084,13 +1079,13 @@ def _parse_storage_input(path_or_uri: str) -> Tuple[Optional[str], str]:
         parts = rest.split('/', 1)
         bucket = parts[0]
         obj = parts[1] if len(parts) > 1 else ''
-        return _normalize_bucket_name(bucket), obj.lstrip('/')
+        return bucket, obj.lstrip('/')
     # HTTP(S) URL patterns (best-effort)
     if s.startswith('http://') or s.startswith('https://'):
         # Try to extract bucket and object from /v0/b/<bucket>/o/<object>
         m = re.search(r"/b/([^/]+)/o/([^?]+)", s)
         if m:
-            bucket = _normalize_bucket_name(m.group(1))
+            bucket = m.group(1)
             # URL-encoded path (replace %2F with /)
             obj = m.group(2).replace('%2F', '/').lstrip('/')
             return bucket, obj
@@ -1105,10 +1100,8 @@ def download_storage_text(file_path: str) -> str:
         raise RuntimeError("Firebase is not initialized on server")
     try:
         bucket_name, object_path = _parse_storage_input(file_path)
-        if bucket_name:
-            bucket = fb_storage.bucket(bucket_name)
-        else:
-            bucket = fb_storage.bucket() if FIREBASE_BUCKET_NAME else fb_storage.bucket()
+        # Use correct bucket name explicitly
+        bucket = fb_storage.bucket("positive-lifeline-web.firebasestorage.app")
         blob = bucket.blob(object_path)
         if not blob.exists():
             raise FileNotFoundError(f"Storage path not found: {bucket.name}/{object_path}")
@@ -1176,8 +1169,51 @@ def health_check():
         "ecg_processor_available": ecg_processor is not None
     })
 
+@app.route('/debug-storage', methods=['POST'])
+@cross_origin()
+def debug_storage():
+    """Debug Firebase Storage access."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        file_path = payload.get('file_path', 'test_path')
+        
+        # Initialize Firebase if needed
+        firebase_status = init_firebase_if_needed()
+        
+        if not firebase_status:
+            return jsonify({
+                "firebase_initialized": False,
+                "error": "Firebase could not be initialized"
+            })
+        
+        # Try to list some files in the bucket
+        bucket_name, object_path = _parse_storage_input(file_path)
+        # Use correct bucket name explicitly
+        bucket = fb_storage.bucket("positive-lifeline-web.firebasestorage.app")
+            
+        # Check if the specific file exists
+        blob = bucket.blob(object_path)
+        file_exists = blob.exists()
+        
+        # Try to list files in the directory
+        directory_prefix = '/'.join(object_path.split('/')[:-1])
+        blobs_list = list(bucket.list_blobs(prefix=directory_prefix, max_results=10))
+        
+        return jsonify({
+            "firebase_initialized": True,
+            "bucket_name": bucket.name,
+            "requested_path": object_path,
+            "file_exists": file_exists,
+            "directory_prefix": directory_prefix,
+            "files_in_directory": [blob.name for blob in blobs_list]
+        })
+        
+    except Exception as e:
+        logger.error(f"Debug storage error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
 # Hybrid Cloud Run-compatible analysis endpoint using Firebase Storage path
-@app.route('/analyze', methods=['POST'])
+@app.route('/analyze', methods=['POST', 'OPTIONS'])
 @cross_origin()
 def analyze_by_storage_path():
     """Analyze ECG file given its Firebase Storage path.
@@ -1185,6 +1221,15 @@ def analyze_by_storage_path():
     Expected JSON: { "file_path": "ekg/<doctorId>/<patientId>/<filename>" }
     Optional: { "sampling_rate": 200 }
     """
+    if request.method == 'OPTIONS':
+        # Preflight request with comprehensive CORS headers
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type, Authorization, X-Requested-With")
+        response.headers.add('Access-Control-Allow-Methods', "GET, POST, OPTIONS")
+        response.headers.add('Access-Control-Max-Age', "3600")
+        return response
+        
     try:
         if ecg_processor is None:
             return jsonify({"success": False, "error": "Analysis service not available"}), 503
@@ -1726,8 +1771,10 @@ if __name__ == '__main__':
     logger.info("=" * 60)
     
     try:
-        # Disable reloader for stable background runs; keep threaded server on port 5001
-        app.run(debug=False, use_reloader=False, host='0.0.0.0', port=5001, threaded=True)
+        # Cloud Run port from environment, fallback to 5001 for local
+        port = int(os.environ.get('PORT', 5001))
+        logger.info(f"Starting server on http://0.0.0.0:{port}")
+        app.run(debug=False, use_reloader=False, host='0.0.0.0', port=port, threaded=True)
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
